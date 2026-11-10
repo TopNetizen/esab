@@ -1,0 +1,13 @@
+{
+  "servers": [
+    {
+      "id": "fixture",
+      "enabled": true,
+      "simulated": true,
+      "transport": "stdio",
+      "command": "python",
+      "args": ["-m", "esab.fixture_upstream"],
+      "notes": "SIMULATED fixture. Not PKPM and not a structural calculation. 安装 wheel 后可直接用这条配置做传输自检。"
+    }
+  ]
+}

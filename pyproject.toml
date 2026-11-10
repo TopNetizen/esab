@@ -1,0 +1,86 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "esab"
+version = "0.4.0a1"
+description = "MCP bridge that lets AI agents drive the engineering software you already have installed and licensed."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "ESAB contributors" }]
+keywords = [
+  "mcp",
+  "model-context-protocol",
+  "cad",
+  "cae",
+  "structural-engineering",
+  "sap2000",
+  "etabs",
+  "abaqus",
+  "tekla",
+  "autocad",
+  "pkpm",
+  "bim",
+  "agent",
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Win32 (MS Windows)",
+  "Intended Audience :: Science/Research",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: MacOS",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Scientific/Engineering",
+]
+dependencies = [
+  "mcp==2.3.0",
+]
+
+[project.optional-dependencies]
+test = ["pytest==9.2.0"]
+# Windows-only engineering software adapters. Install with:
+#   pip install "esab[win32]"
+#   pip install "esab[win32,tekla]"
+win32 = [
+  "comtypes>=1.2",
+  "pywin32>=306",
+  "pyautocad>=0.2.0",
+]
+tekla = [
+  "pythonnet>=3.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/TopNetizen/esab"
+Repository = "https://github.com/TopNetizen/esab"
+Issues = "https://github.com/TopNetizen/esab/issues"
+Changelog = "https://github.com/TopNetizen/esab/blob/main/CHANGELOG.md"
+
+[project.scripts]
+esab = "esab.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["esab*"]
+
+[tool.setuptools.package-data]
+esab = [
+    "data/*.json",
+    "data/skills/**/*.md",
+    "data/skills/**/*.py",
+    "data/skills/**/*.rb",
+    "data/skills/**/*.db",
+    "data/db/**/*.db",
+    "data/db/**/*.json",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-q"

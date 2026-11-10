@@ -1,0 +1,2966 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>审查报告导出配置</title>
+    <link rel="icon" href="./logo.jpg">
+    <!-- 将本地依赖替换为公共 CDN，解决预览环境下无法加载 libs 的问题 -->
+    <script src="./libs/tailwindcss.js"></script>
+    <script src="./libs/vue.global.prod.js"></script>
+    <script src="./libs/pizzip.min.js"></script>
+    <script src="./libs/docxtemplater.js"></script>
+    <script src="./libs/imagemodule.js"></script>
+    <script src="./libs/FileSaver.min.js"></script>
+    <script src="./libs/lucide.min.js"></script>
+    <style>
+        /* 自定义滚动条 */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        /* 拖拽相关过渡动画 */
+        .drag-over { background-color: #eff6ff !important; border-color: #3b82f6 !important; border-style: dashed !important; }
+        
+        /* 隐藏原生文件输入框 */
+        input[type="file"].hidden-file { display: none; }
+
+        [v-cloak] { display: none; }
+
+        @keyframes fade-in-up {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-fade-in {
+            animation: fade-in-up 220ms ease-out both;
+        }
+
+        .mapped-block * {
+            pointer-events: none;
+        }
+        
+        /* Checkbox 样式微调 */
+        .mfc-checkbox {
+            @apply w-4 h-4 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500 focus:ring-2 disabled:bg-gray-200 disabled:border-gray-300;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans h-screen overflow-hidden flex flex-col">
+
+<div id="app" class="h-screen min-h-0 flex flex-col max-w-6xl mx-auto w-full p-4 md:p-6" v-cloak>
+    
+    <!-- 头部和步骤指示器 -->
+    <header class="mb-8 shrink-0">
+        <div class="flex items-center justify-between w-full relative">
+            <div class="absolute left-0 top-1/2 transform -translate-y-1/2 w-full h-1 bg-gray-200 z-0 rounded"></div>
+            <div class="absolute left-0 top-1/2 transform -translate-y-1/2 h-1 bg-blue-500 z-0 rounded transition-all duration-300" :style="{ width: ((currentStep - 1) / 2) * 100 + '%' }"></div>
+            
+            <div v-for="step in 3" :key="step" class="relative z-10 flex flex-col items-center">
+                <div :class="['w-10 h-10 rounded-full flex items-center justify-center font-bold border-2 transition-colors duration-300', 
+                    currentStep >= step ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-300 text-gray-400']">
+                    {{ step }}
+                </div>
+                <span :class="['mt-2 text-sm font-medium', currentStep >= step ? 'text-blue-600' : 'text-gray-400']">
+                    {{ step === 1 ? '基本信息' : (step === 2 ? '数据筛选' : '导出设置') }}
+                </span>
+            </div>
+        </div>
+    </header>
+
+    <!-- 消息提示框 -->
+    <div v-if="message.show" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-[min(92vw,760px)]">
+        <div :class="['p-4 rounded-lg flex items-start border shadow-lg', 
+            message.type === 'error' ? 'bg-red-50 border-red-200 text-red-700' : 
+            message.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' : 
+            'bg-blue-50 border-blue-200 text-blue-700']">
+            <i :data-lucide="message.type === 'error' ? 'alert-circle' : 'check-circle'" class="w-5 h-5 mr-2 flex-shrink-0 mt-0.5"></i>
+            <span>{{ message.text }}</span>
+            <button @click="message.show = false" class="ml-auto text-gray-400 hover:text-gray-600"><i data-lucide="x" class="w-4 h-4"></i></button>
+        </div>
+    </div>
+
+    <!-- 主体内容区 -->
+    <main :class="['bg-white rounded-xl shadow-sm border border-gray-200 p-6 md:p-8 relative overflow-hidden flex flex-col flex-1 min-h-0']">
+        
+        <!-- ================= 步骤 1：基本信息 ================= -->
+        <div v-show="currentStep === 1" class="animate-fade-in flex-grow min-h-0 overflow-y-auto">
+            <section class="border border-gray-200 rounded-lg p-4 mb-8">
+                <h2 class="text-sm font-semibold text-gray-800 border-b pb-2 mb-4">基本信息填写</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3">
+                    <div class="flex items-center gap-3">
+                        <label class="w-20 shrink-0 whitespace-nowrap text-sm font-medium text-gray-700 text-right">工程名称</label>
+                        <input v-model.trim="basicInfo.projectName" type="text" class="h-8 w-full px-3 py-1 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow">
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <label class="w-20 shrink-0 whitespace-nowrap text-sm font-medium text-gray-700 text-right">工程编号</label>
+                        <input v-model.trim="basicInfo.projectCode" type="text" class="h-8 w-full px-3 py-1 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow">
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <label class="w-20 shrink-0 whitespace-nowrap text-sm font-medium text-gray-700 text-right">审查阶段</label>
+                        <input v-model.trim="basicInfo.stage" type="text" class="h-8 w-full px-3 py-1 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow">
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <label class="w-20 shrink-0 whitespace-nowrap text-sm font-medium text-gray-700 text-right">审查人/机构</label>
+                        <input v-model.trim="basicInfo.reviewer" type="text" class="h-8 w-full px-3 py-1 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow">
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <label class="w-20 shrink-0 whitespace-nowrap text-sm font-medium text-gray-700 text-right">设计负责人</label>
+                        <input v-model.trim="basicInfo.designLead" type="text" class="h-8 w-full px-3 py-1 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow">
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <label class="w-20 shrink-0 whitespace-nowrap text-sm font-medium text-gray-700 text-right">设计人</label>
+                        <input v-model.trim="basicInfo.designer" type="text" class="h-8 w-full px-3 py-1 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow">
+                    </div>
+                </div>
+            </section>
+
+            <h2 class="text-lg font-semibold border-b pb-2 mb-4">上传审查数据 <span class="text-red-500">*</span></h2>
+            <div v-if="jsonFiles.length > 0" class="mb-4 bg-blue-50 border border-blue-100 rounded-lg p-4">
+                <h3 class="text-sm font-bold text-blue-800 mb-3">
+                    已加载文件（{{ jsonFiles.length }}）
+                </h3>
+                <div class="space-y-3">
+                    <div v-for="(file, index) in jsonFiles" :key="`${file.name}-${index}`" class="bg-white rounded-lg border border-blue-100 shadow-sm p-3">
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="min-w-0">
+                                <p class="text-sm text-blue-700 font-mono flex items-center">
+                                    <i data-lucide="file-json" class="w-4 h-4 mr-2 shrink-0"></i>
+                                    <span class="truncate font-bold">{{ file.name }}</span>
+                                </p>
+                                <p class="text-xs text-gray-500 mt-1 ml-6">图纸数量：{{ file.drawings.length }}</p>
+                            </div>
+                            <button @click.stop="removeJsonFile(index)" class="w-16 h-9 bg-red-50 text-red-600 hover:bg-red-100 rounded border border-red-100 text-xs font-medium inline-flex items-center justify-center text-center transition-colors shrink-0">
+                                删除
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div v-if="extractedDrawings.length > 0" class="mt-4 pt-3 border-t border-blue-200">
+                    <h4 class="text-xs font-semibold text-blue-800 mb-2">全部图纸汇总：</h4>
+                    <div class="flex flex-wrap gap-2">
+                        <span v-for="dwg in extractedDrawings" :key="`all-${dwg}`" class="text-xs bg-white text-gray-600 px-2 py-1 rounded border border-blue-100">
+                            {{ dwg }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:bg-gray-50 transition-colors cursor-pointer"
+                 @dragover.prevent @drop.prevent="handleJsonDrop" @click="$refs.jsonInput.click()">
+                <input type="file" ref="jsonInput" multiple accept=".json" class="hidden-file" @change="handleJsonSelect">
+                <i data-lucide="upload-cloud" class="w-12 h-12 text-blue-500 mx-auto mb-3"></i>
+                <p class="text-gray-600 font-medium">点击此处选择 JSON 文件，或将文件拖拽到此处</p>
+                <p class="text-sm text-gray-400 mt-1">支持上传多个数据包，汇总多图纸审查意见</p>
+                <p class="text-sm text-gray-400 mt-1">审查数据存于图纸目录，文件名为：图纸名称-PK审查数据.json</p>
+            </div>
+        </div>
+
+        <!-- ================= 步骤 2：筛选条件 ================= -->
+        <div v-show="currentStep === 2" class="animate-fade-in flex-grow min-h-0 overflow-y-auto">
+            <!-- 清单目录区块 -->
+            <div class="bg-blue-50 px-4 py-2.5 rounded-md font-bold text-gray-800 mb-4">
+                清单目录
+            </div>
+            <div class="flex items-center mb-8 px-4">
+                <div class="flex flex-wrap gap-8">
+                    <label class="flex items-center cursor-pointer text-gray-700 hover:text-blue-600">
+                        <input type="checkbox" v-model="filters.listTypes" value="审查项清单" class="mfc-checkbox mr-2">
+                        <span class="text-sm">审查项清单</span>
+                    </label>
+                    <label class="flex items-center cursor-pointer text-gray-700 hover:text-blue-600">
+                        <input type="checkbox" v-model="filters.listTypes" value="意见明细单" class="mfc-checkbox mr-2">
+                        <span class="text-sm">意见明细单</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- 意见筛选区块 -->
+            <div class="bg-blue-50 px-4 py-2.5 rounded-md font-bold text-gray-800 mb-4">
+                意见筛选
+            </div>
+            <div class="px-4">
+                <!-- 审查类别 -->
+                <div class="flex items-start mb-5">
+                    <div class="w-20 text-sm text-gray-700 shrink-0 pt-0.5">审查类别：</div>
+                    <div class="grid grid-cols-4 gap-x-8 gap-y-3">
+                        <label v-for="type in availableTypes" :key="type" 
+                               :class="['flex items-center', !isChecktypeSupported(type) ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer hover:text-blue-600']">
+                            <input type="checkbox" v-model="filters.types" :value="type" :disabled="!isChecktypeSupported(type)" class="mfc-checkbox mr-2">
+                            <span class="text-sm">{{ toFilterLabel(type) }}</span>
+                        </label>
+                        <span v-if="availableTypes.length === 0" class="text-sm text-gray-400 py-0.5">加载JSON后自动提取...</span>
+                    </div>
+                </div>
+
+                <!-- 条文性质 -->
+                <div class="flex items-start mb-5" :class="{'opacity-50 transition-opacity duration-300': !filters.types.includes('规范审查')}">
+                    <div class="w-20 text-sm text-gray-700 shrink-0 pt-0.5">条文性质：</div>
+                    <div class="flex flex-wrap gap-x-6 gap-y-3">
+                        <label v-for="sev in displaySeverities" :key="sev"
+                               :class="['flex items-center', !isSeveritySupported(sev) ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer hover:text-blue-600']">
+                            <input type="checkbox" v-model="filters.severities" :value="sev" :disabled="!isSeveritySupported(sev)" class="mfc-checkbox mr-2">
+                            <span class="text-sm">{{ toFilterLabel(sev) }}</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- 仅导出采纳意见 -->
+                <div class="flex items-center pt-2">
+                    <label class="flex items-center cursor-pointer text-gray-700 hover:text-blue-600">
+                        <input type="checkbox" v-model="filters.onlyAdopted" class="mfc-checkbox mr-2">
+                        <span class="text-sm">仅导出采纳意见</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- 筛选数量统计面板 -->
+            <div class="mt-8 flex items-center justify-between bg-blue-50 border border-blue-200 p-4 rounded-lg shadow-sm">
+                <div>
+                    <h3 class="text-blue-800 font-bold flex items-center">
+                        <i data-lucide="bar-chart-2" class="w-5 h-5 mr-2"></i> 数据筛选统计
+                    </h3>
+                    <p class="text-sm text-blue-600 mt-1">
+                        原始报告中共计 <span class="font-bold text-lg mx-1">{{ issueStats.total }}</span> 条审查意见
+                    </p>
+                </div>
+                <div class="text-right border-l border-blue-200 pl-6">
+                    <p class="text-sm text-blue-600 font-medium">符合当前条件</p>
+                    <p class="text-3xl font-bold text-blue-700 mt-1">
+                        {{ issueStats.filtered }} <span class="text-sm font-normal">条</span>
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= 步骤 3：导出设置与模板映射 ================= -->
+        <div v-show="currentStep === 3" :class="['animate-fade-in', showTemplateMapping ? 'flex flex-col h-full min-h-0 overflow-hidden' : 'flex-grow min-h-0 overflow-y-auto']">
+            <h2 class="text-lg font-semibold border-b pb-2 mb-4 shrink-0">导出设置</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4 bg-gray-50 p-4 rounded-lg shrink-0 border">
+                <div class="lg:col-span-2">
+                    <label class="block text-xs font-medium text-gray-500 mb-1">文件名称</label>
+                    <input v-model="exportSettings.fileName" type="text" class="w-full px-3 py-1.5 border border-gray-300 rounded text-sm outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">导出格式</label>
+                    <select class="w-full px-3 py-1.5 border border-gray-300 rounded text-sm bg-gray-100 cursor-not-allowed" disabled>
+                        <option>Word (.docx)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">页面参数</label>
+                    <div class="flex space-x-2">
+                        <div class="w-1/2 px-2 py-1.5 border border-gray-300 rounded text-sm bg-gray-100 text-gray-500">
+                            {{ templateLoaded ? exportSettings.paperSize : '-' }}
+                        </div>
+                        <div class="w-1/2 px-2 py-1.5 border border-gray-300 rounded text-sm bg-gray-100 text-gray-500">
+                            {{ templateLoaded ? exportSettings.orientation : '-' }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 模板配置区 -->
+            <div class="flex items-center justify-between gap-4 mb-3 shrink-0">
+                <h2 class="text-lg font-semibold cursor-pointer select-none hover:text-blue-600 transition-colors" @click="onTemplateConfigClick">模板配置</h2>
+                <div class="flex flex-wrap items-center justify-end gap-3">
+                    <button @click="useDefaultTemplate" :disabled="isLoadingDefaultTemplate" :class="['h-9 px-5 text-sm border rounded shadow-sm inline-flex items-center justify-center transition-colors', templateMode === 'default' ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50']">
+                        默认模板
+                    </button>
+                    <button @click="$refs.templateInput.click()" :class="['h-9 px-5 text-sm border rounded shadow-sm inline-flex items-center justify-center transition-colors', templateMode === 'custom' ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50']">
+                        上传自定义模板 (.docx)
+                    </button>
+                    <input type="file" ref="templateInput" accept=".docx" class="hidden-file" @change="handleTemplateSelect">
+                    <span class="h-9 inline-flex items-center rounded border border-blue-200 bg-blue-50 px-3 text-xs text-blue-700">
+                        当前模板：{{ templateName || '未加载' }}
+                    </span>
+                </div>
+            </div>
+
+            <div v-if="showTemplateMapping" class="bg-blue-50 text-blue-700 p-4 rounded-lg mb-3 flex items-start border border-blue-100 shrink-0 shadow-sm">
+                <svg class="w-5 h-5 mr-2 shrink-0 mt-0.5 text-red-500" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M14.2 3.4a2 2 0 0 1 2.8 0l3.6 3.6a2 2 0 0 1 0 2.8l-2 2 1.1 1.1a1 1 0 0 1 0 1.4l-1.4 1.4a1 1 0 0 1-1.4 0l-3.2-3.2-3.8 3.8-.7 3.6a1 1 0 0 1-1.7.5l-3.9-3.9a1 1 0 0 1 .5-1.7l3.6-.7 3.8-3.8-3.2-3.2a1 1 0 0 1 0-1.4l1.4-1.4a1 1 0 0 1 1.4 0l1.1 1.1 2-2Z"></path>
+                </svg>
+                <div>
+                    <p class="text-sm font-bold text-blue-800">配置步骤：</p>
+                    <p class="mt-2 text-lg font-semibold text-blue-700">上传模板 → 绑定数据 → 生成报告</p>
+                </div>
+            </div>
+
+            <div v-if="showTemplateMapping" class="flex-grow grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-0 h-[30rem] overflow-hidden">
+                
+                <!-- 左侧：可用字段 (Data Sources) -->
+                <div class="border rounded-lg bg-white shadow-sm flex flex-col overflow-hidden min-h-0">
+                    <div class="bg-gray-100 px-4 py-2 border-b font-medium text-gray-700 text-sm flex justify-between shrink-0">
+                        <span>可绑定内容</span>
+                    </div>
+                    <div class="p-3 overflow-y-auto flex-grow min-h-0 bg-gray-50 space-y-2">
+                        
+                        <div v-for="field in displayedFields" :key="field.id">
+                            <!-- 顶级字段 (文本、是/否、表格内容) -->
+                            <div draggable="true"
+                                 @dragstart="onDragStart($event, { type: field.type, id: field.id, label: field.label })"
+                                 class="p-2 bg-white border border-gray-200 rounded shadow-sm cursor-grab hover:border-blue-300 hover:shadow flex items-center group transition-colors">
+                                <i v-if="field.type !== 'loop' && field.type !== 'image' && field.type !== 'boolean'" data-lucide="tag" class="w-4 h-4 mr-2 text-blue-500"></i>
+                                <i v-if="field.type === 'boolean'" data-lucide="toggle-right" class="w-4 h-4 mr-2 text-amber-500"></i>
+                                <div class="flex-grow min-w-0">
+                                    <div class="text-sm font-medium text-gray-700">
+                                        {{ field.label }}
+                                    </div>
+                                    <div v-if="field.preview" class="text-xs text-gray-400 font-mono">{{ field.preview }}</div>
+                                </div>
+                                <span :class="getTypeBadgeClass(field.type)" v-text="getTypeBadgeLabel(field.type)"></span>
+                                <i data-lucide="grip-vertical" class="w-4 h-4 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                            </div>
+                            
+                            <!-- 表格字段 -->
+                            <div v-if="field.type === 'loop' && field.children" class="ml-3 pl-3 border-l-2 border-sky-100 mt-1 space-y-1">
+                                <div v-for="sub in field.children" :key="sub.id"
+                                     draggable="true"
+                                     @dragstart="onDragStart($event, { type: 'sub', parentId: field.id, id: sub.id, label: sub.label })"
+                                     class="p-1.5 bg-white border border-gray-100 rounded text-xs cursor-grab hover:border-green-300 flex items-center group">
+                                    <i data-lucide="corner-down-right" class="w-3 h-3 mr-1 text-gray-300"></i>
+                                    <span class="flex-grow min-w-0 text-gray-600 truncate">{{ sub.label }}</span>
+                                    <span :class="getTypeBadgeClass('sub')" v-text="getTypeBadgeLabel('sub')"></span>
+                                    <i data-lucide="grip-vertical" class="w-3 h-3 text-gray-300 opacity-0 group-hover:opacity-100"></i>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- 右侧：模板标签 (Drop Targets) -->
+                <div class="border rounded-lg bg-white shadow-sm flex flex-col overflow-hidden min-h-0">
+                    <div class="bg-gray-100 px-4 py-2 border-b font-medium text-gray-700 text-sm flex justify-between items-center shrink-0">
+                        <span>模板中的占位内容</span>
+                        <span v-if="!templateLoaded" class="text-xs text-red-500 flex items-center"><i data-lucide="alert-triangle" class="w-3 h-3 mr-1"></i> 未加载模板 (使用默认)</span>
+                        <span v-else class="text-xs text-green-600 flex items-center"><i data-lucide="check" class="w-3 h-3 mr-1"></i> 已解析 {{ templateTags.length }} 个标签</span>
+                    </div>
+                    <div class="p-3 overflow-y-auto flex-grow min-h-0 bg-gray-50 space-y-3">
+                        
+                        <div v-for="tag in templateTags" :key="tag.name" :class="['border rounded-lg p-2 bg-white relative', getTagUiType(tag) === 'loop' ? 'border-sky-200 shadow-sm' : (getTagUiType(tag) === 'condition' ? 'border-amber-200 border-dashed' : 'border-dashed border-gray-300')]">
+                            
+                            <!-- 主标签展示 -->
+                            <div class="text-xs font-mono text-gray-500 mb-1 flex items-start justify-between gap-2">
+                                <div class="flex items-center min-w-0">
+                                    <span :class="['px-1 rounded mr-2 min-w-0 truncate', getTagUiType(tag) === 'loop' ? 'bg-sky-100 text-sky-800' : (getTagUiType(tag) === 'condition' ? 'bg-amber-100 text-amber-800' : (tag.isImage ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100'))]">
+                                        <span v-text="getTemplateTagText(tag)"></span>
+                                    </span>
+                                    <span v-if="!canSwitchTagType(tag)" :class="getTypeBadgeClass(tag.isImage ? 'image' : 'text')" v-text="getTypeBadgeLabel(tag.isImage ? 'image' : 'text')"></span>
+                                </div>
+                                <div v-if="canSwitchTagType(tag)" class="inline-flex shrink-0 overflow-hidden rounded border border-gray-200 bg-white">
+                                    <button type="button"
+                                            @click="setTagUiType(tag, 'condition')"
+                                            :class="['px-2 py-0.5 text-[11px] transition-colors', getTagUiType(tag) === 'condition' ? 'bg-amber-100 text-amber-800' : 'text-gray-500 hover:bg-gray-50']">
+                                        条件
+                                    </button>
+                                    <button type="button"
+                                            @click="setTagUiType(tag, 'loop')"
+                                            :class="['px-2 py-0.5 text-[11px] border-l border-gray-200 transition-colors', getTagUiType(tag) === 'loop' ? 'bg-sky-100 text-sky-800' : 'text-gray-500 hover:bg-gray-50']">
+                                        表格
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- 主标签放置区 -->
+                            <div :class="['min-h-[36px] rounded bg-gray-50 border flex items-center px-2 text-sm transition-colors relative', getTagUiType(tag) === 'loop' ? 'border-sky-100' : (getTagUiType(tag) === 'condition' ? 'border-amber-100' : 'border-gray-100')]"
+                                 @dragover.prevent="onDragOver($event)"
+                                 @dragleave.prevent="onDragLeave($event)"
+                                 @drop.prevent="onDrop($event, tag.name, tag.type)">
+                                
+                                <!-- 如果是拖拽映射的数据，显示块状标签 -->
+                                <div v-if="mappings[tag.name] && mappings[tag.name].type !== 'manual'" :class="['mapped-block flex items-center w-full px-2 py-1 rounded', getTagUiType(tag) === 'loop' ? 'bg-sky-50 border border-sky-200 text-sky-700' : (getTagUiType(tag) === 'condition' ? 'bg-amber-50 border border-amber-200 text-amber-700' : (mappings[tag.name].type === 'image' ? 'bg-emerald-50 border border-emerald-200 text-emerald-700' : 'bg-blue-50 border border-blue-200 text-blue-700'))]">
+                                    <i v-if="mappings[tag.name].type !== 'loop' && mappings[tag.name].type !== 'image'" data-lucide="tag" class="w-4 h-4 mr-2 shrink-0"></i>
+                                    <i v-if="mappings[tag.name].type === 'image'" data-lucide="image" class="w-4 h-4 mr-2 shrink-0"></i>
+                                    <span class="flex-grow truncate">{{ mappings[tag.name].label }}</span>
+                                    <button @click="removeMapping(tag.name)" class="pointer-events-auto text-gray-400 hover:text-red-500 ml-2 shrink-0 bg-transparent border-0 p-0 text-sm leading-none font-semibold" aria-label="删除绑定">
+                                        X
+                                    </button>
+                                </div>
+                                
+                                <!-- 区段标签根据绑定数据类型作为条件或表格渲染 -->
+                                <span v-else-if="getTagUiType(tag) === 'loop'" class="text-gray-400 italic text-xs py-1.5 px-1">请拖入一个表格内容，或点击右侧按钮切换...</span>
+                                <span v-else-if="getTagUiType(tag) === 'condition'" class="text-gray-400 italic text-xs py-1.5 px-1">请拖入一个是/否内容，或点击右侧按钮切换...</span>
+
+                                <!-- 如果是文本，且没有拖拽映射数据，则允许直接在键盘输入 -->
+                                <input v-else type="text"
+                                       class="w-full bg-transparent text-sm text-gray-700 outline-none placeholder-gray-400 py-1"
+                                       :placeholder="tag.isImage ? '拖入图片内容，或输入图片地址...' : '拖入对应内容，或输入固定文字...'"
+                                       :value="mappings[tag.name] ? mappings[tag.name].value : ''"
+                                       @input="onManualInput($event, tag.name)">
+                            </div>
+
+                            <!-- 区段内部标签 -->
+                            <div v-if="tag.children && tag.children.length > 0" :class="['mt-2 ml-4 pl-3 border-l-2 space-y-2', getTagUiType(tag) === 'loop' ? 'border-sky-100' : 'border-amber-100']">
+                                <div v-for="child in tag.children" :key="child.name" class="relative">
+                                    <div class="text-xs font-mono text-gray-500 mb-0.5 flex items-center">
+                                        <i data-lucide="corner-down-right" class="w-3 h-3 mr-1 text-gray-300"></i>
+                                        <span class="bg-gray-100 px-1 rounded mr-2" v-text="getTemplateTagText(child)"></span>
+                                    </div>
+                                    <div class="min-h-[30px] rounded bg-gray-50 border border-gray-100 flex items-center px-2 text-xs transition-colors"
+                                         @dragover.prevent="onDragOver($event)"
+                                         @dragleave.prevent="onDragLeave($event)"
+                                         @drop.prevent="onDrop($event, tag.name + '.' + child.name, getChildDropType(tag), tag.name)">
+                                        
+                                        <!-- 如果拖拽映射了动态字段 -->
+                                        <div v-if="mappings[tag.name + '.' + child.name] && mappings[tag.name + '.' + child.name].type !== 'manual'" :class="['mapped-block flex items-center w-full px-2 py-0.5 rounded', mappings[tag.name + '.' + child.name].type === 'image' ? 'bg-emerald-50 border border-emerald-100 text-emerald-700' : 'bg-blue-50 border border-blue-100 text-blue-700']">
+                                            <i v-if="mappings[tag.name + '.' + child.name].type !== 'image'" data-lucide="tag" class="w-3 h-3 mr-1.5 shrink-0"></i>
+                                            <i v-if="mappings[tag.name + '.' + child.name].type === 'image'" data-lucide="image" class="w-3 h-3 mr-1.5 shrink-0"></i>
+                                            <span class="flex-grow truncate">{{ mappings[tag.name + '.' + child.name].label }}</span>
+                                            <button @click="removeMapping(tag.name + '.' + child.name)" class="pointer-events-auto text-gray-400 hover:text-red-500 ml-2 shrink-0 bg-transparent border-0 p-0 text-xs leading-none font-semibold" aria-label="删除绑定">
+                                                X
+                                            </button>
+                                        </div>
+                                        
+                                        <!-- 允许在该子项内部进行固定键盘输入 -->
+                                        <input v-else type="text"
+                                               :disabled="isChildInputDisabled(tag)"
+                                               class="w-full bg-transparent text-xs text-gray-700 outline-none placeholder-gray-400 py-1 disabled:cursor-not-allowed"
+                                               :placeholder="getChildPlaceholder(tag, child)"
+                                               :value="mappings[tag.name + '.' + child.name] ? mappings[tag.name + '.' + child.name].value : ''"
+                                               @input="onManualInput($event, tag.name + '.' + child.name)">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- 底部操作按钮 -->
+    <footer class="mt-4 flex justify-between items-center shrink-0 rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm">
+        <div>
+            <button v-if="currentStep > 1" @click="currentStep--" class="w-24 h-11 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 inline-flex items-center justify-center text-center">
+                上一步
+            </button>
+        </div>
+        <div class="flex space-x-4">
+            <button @click="cancel" class="px-6 py-2 text-gray-500 hover:text-gray-700 font-medium transition-colors">
+                取消
+            </button>
+            <button v-if="currentStep < 3" @click="nextStep" class="w-24 h-11 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 inline-flex items-center justify-center text-center">
+                下一步
+            </button>
+            <button v-if="currentStep === 3" @click="generateExport" :disabled="isExporting" class="w-28 h-11 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium transition-colors shadow-sm disabled:opacity-50 inline-flex items-center justify-center text-center focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                确认导出
+            </button>
+        </div>
+    </footer>
+</div>
+
+<script>
+const { createApp, ref, computed, onMounted, nextTick } = Vue;
+
+const EMPTY_FILTER_TOKEN = '__EMPTY__';
+const EMPTY_FILTER_LABEL = '[空]';
+const LIST_TYPE_DETAIL = '意见明细单';
+const LIST_TYPE_RULE = '审查项清单';
+const LIST_TYPE_OPTIONS = [LIST_TYPE_RULE, LIST_TYPE_DETAIL];
+const CHECKTYPE_DISPLAY_ORDER = ['计算结果', '规范审查', '配筋不足', '配筋冗余', '图模一致', '图纸表达', '重要提示'];
+const MIME_DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+const TRANSPARENT_PNG_DATA_URL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7+7eQAAAAASUVORK5CYII=';
+const BUILTIN_TEMPLATE_CANDIDATES = ['PKPM校审清单模板示例.docx', 'PKPM校审清单模板.docx'];
+const URL_JSON_PATH_PARAM_NAMES = ['jsonPath', 'json', 'jsonPaths'];
+
+const app = createApp({
+    setup() {
+        // --- 状态管理 ---
+        const currentStep = ref(1);
+        const isExporting = ref(false);
+        const message = ref({ show: false, text: '', type: 'info' });
+        const testMode = ref(false);
+        const configClickCount = ref(0);
+        let messageTimer = null;
+
+        const refreshIcons = () => {
+            // Avoid external DOM mutation on Vue-managed nodes.
+            return;
+        };
+
+        const showMessage = (text, type = 'info') => {
+            if (messageTimer) clearTimeout(messageTimer);
+            message.value = { show: true, text, type };
+            refreshIcons();
+            messageTimer = setTimeout(() => { message.value.show = false; }, 5000);
+        };
+
+        const ensureArray = (value) => (Array.isArray(value) ? value : []);
+        const normalizeText = (value) => (value == null ? '' : String(value).trim());
+        const toFilterOptionValue = (value) => {
+            const normalized = normalizeText(value);
+            return normalized === '' ? EMPTY_FILTER_TOKEN : normalized;
+        };
+        const toFilterLabel = (value) => (value === EMPTY_FILTER_TOKEN ? EMPTY_FILTER_LABEL : value);
+        
+        // 仅做符号规格化，匹配仍要求全名称完全相等。
+        const normalizeNameToken = (value) => {
+            let str = normalizeText(value).normalize('NFKC');
+            str = str.replace(/，/g, ',');
+            str = str.replace(/（/g, '(').replace(/）/g, ')');
+            str = str.replace(/[【［〔]/g, '[').replace(/[】］〕]/g, ']');
+            return str;
+        };
+        
+        const FIELD_NAME_ALIASES = {
+            projectName: ['项目名称'],
+            exportRuleListEnabled: ['审查项清单', '是否导出审查项清单', '导出审查项清单'],
+            exportIssueListEnabled: ['意见明细单', '是否导出意见明细单', '导出意见明细单'],
+            sourceProjectVersion: ['源数据版本'],
+            sourceProjectDate: ['源数据日期'],
+            drawingNames: ['图纸名称汇总'],
+            selectedTypes: ['审查类别筛选', '审查类别(筛选)'],
+            rulesList: ['规范条文汇总列表', '审查项目单'],
+            issuesList: ['具体审查意见列表', '意见明细单'],
+            standardName: ['规范', '规范依据'],
+            clauseNo: ['条文', '条款'],
+            type: ['性质', '条款性质', '条文性质'],
+            checkItem: ['来自item', '审查项'],
+            reviewComment: ['问题描述', '意见描述'],
+            drawingName: ['图纸'],
+            isAdopted: ['是否采纳', '人工校核', '是否人工校核']
+        };
+
+        const getFieldMatchTokens = (field) => {
+            const tokens = [field?.id, field?.label]
+                .map(normalizeNameToken)
+                .filter(Boolean);
+            return Array.from(new Set(tokens));
+        };
+
+        // 所有自动匹配都必须是规格化后的全名称完全相等，不能短名匹配长名。
+        const findBestFieldMatch = (tagKey, fields) => {
+            const tagToken = normalizeNameToken(tagKey);
+            if (!tagToken) return null;
+            return fields.find(field => {
+                return getFieldMatchTokens(field).some(token => token === tagToken);
+            }) || null;
+        };
+
+        const findExactFieldMatch = (tagKey, fields) => {
+            const tagToken = normalizeNameToken(tagKey);
+            if (!tagToken) return null;
+            return fields.find(field => getFieldMatchTokens(field).some(token => token === tagToken)) || null;
+        };
+
+        // Step 1: 基本信息
+        const basicInfo = ref({
+            projectName: '',
+            projectCode: '',
+            stage: '',
+            reviewer: '',
+            designLead: '',
+            designer: ''
+        });
+
+        // 存储解析后的JSON数据
+        const jsonFiles = ref([]);
+        const parsedJsonData = ref({ project: {}, rules: [], results: [], supportChecktype: {} });
+
+        // 图纸提取
+        const extractedDrawings = computed(() => {
+            const drawingSet = new Set();
+            ensureArray(parsedJsonData.value.results).forEach((result) => {
+                const drawingName = normalizeText(result?.drawing);
+                if (drawingName) drawingSet.add(drawingName);
+            });
+            return Array.from(drawingSet);
+        });
+
+        // Step 2: 筛选条件
+        const filters = ref({
+            listTypes: [...LIST_TYPE_OPTIONS],
+            types: [],
+            severities: [],
+            onlyAdopted: false
+        });
+
+        // 审查类别和条文性质自动提取（包含空值选项）
+        const availableTypes = computed(() => {
+            const options = new Set();
+            if (parsedJsonData.value.supportChecktype) {
+                Object.keys(parsedJsonData.value.supportChecktype).forEach(k => options.add(k));
+            }
+            ensureArray(parsedJsonData.value.rules).forEach((rule) => {
+                options.add(toFilterOptionValue(rule?.Checktype));
+            });
+            return Array.from(options).sort((a, b) => {
+                const indexA = CHECKTYPE_DISPLAY_ORDER.indexOf(a);
+                const indexB = CHECKTYPE_DISPLAY_ORDER.indexOf(b);
+                const rankA = indexA === -1 ? CHECKTYPE_DISPLAY_ORDER.length : indexA;
+                const rankB = indexB === -1 ? CHECKTYPE_DISPLAY_ORDER.length : indexB;
+                if (rankA !== rankB) return rankA - rankB;
+                return String(a).localeCompare(String(b), 'zh-CN');
+            });
+        });
+
+        const isChecktypeSupported = (type) => {
+            // “空”以及我们强行为孤儿意见生成的“未知分类”永远允许支持
+            if (type === EMPTY_FILTER_TOKEN || type === '未知分类(异常)') return true;
+            if (parsedJsonData.value.supportChecktype && parsedJsonData.value.supportChecktype[type] !== undefined) {
+                return parsedJsonData.value.supportChecktype[type] === true;
+            }
+            return true;
+        };
+
+        // 核心修改：动态获取JSON中实际存在的条文性质，不再使用 ruleId(单数)
+        const activeSeveritiesInJson = computed(() => {
+            const options = new Set();
+            const rulesMap = new Map();
+            ensureArray(parsedJsonData.value.rules).forEach((rule) => {
+                if (rule?.id != null) {
+                    rulesMap.set(String(rule.id), rule);
+                }
+            });
+
+            ensureArray(parsedJsonData.value.results).forEach(result => {
+                ensureArray(result?.issues).forEach(issue => {
+                    // 读取主键(TopruleId -> ruleIds)
+                    let primaryRuleId = issue?.TopruleId != null ? String(issue.TopruleId) : null;
+                    if (!primaryRuleId && Array.isArray(issue?.ruleIds) && issue.ruleIds.length > 0) {
+                        primaryRuleId = String(issue.ruleIds[0]);
+                    }
+                    if (!primaryRuleId) return;
+                    
+                    const rule = rulesMap.get(primaryRuleId);
+                    if (rule && normalizeText(rule.Checktype) === '规范审查') {
+                        const sev = toFilterOptionValue(rule.severity);
+                        options.add(sev);
+                    }
+                });
+            });
+            return options;
+        });
+
+        // 核心修改：固定显示基础选项，【空】只有存在时才加入显示列表，完美满足置灰不显示的需求
+        const displaySeverities = computed(() => {
+            const base = ['强条', '应字', '宜字'];
+            const all = new Set([...base]);
+            if (activeSeveritiesInJson.value.has(EMPTY_FILTER_TOKEN)) {
+                all.add(EMPTY_FILTER_TOKEN);
+            }
+            return Array.from(all);
+        });
+
+        // 核心修改：判断该条文性质是否置灰
+        const isSeveritySupported = (sev) => {
+            if (!filters.value.types.includes('规范审查')) return false;
+            return activeSeveritiesInJson.value.has(sev);
+        };
+
+        const ensureDefaultFilterSelection = () => {
+            filters.value.listTypes = filters.value.listTypes.filter(type => LIST_TYPE_OPTIONS.includes(type));
+            filters.value.types = filters.value.types.filter(type => isChecktypeSupported(type));
+            filters.value.severities = filters.value.severities.filter(severity => activeSeveritiesInJson.value.has(severity));
+
+            if (filters.value.listTypes.length === 0) {
+                filters.value.listTypes = [...LIST_TYPE_OPTIONS];
+            }
+            if (availableTypes.value.length > 0 && filters.value.types.length === 0) {
+                filters.value.types = availableTypes.value.filter(t => isChecktypeSupported(t));
+            }
+            if (activeSeveritiesInJson.value.size > 0 && filters.value.severities.length === 0) {
+                filters.value.severities = Array.from(activeSeveritiesInJson.value);
+            }
+        };
+
+        const isRuleMatched = (rule) => {
+            // 如果连审查类别都没选，那么所有意见都不符合
+            if (filters.value.types.length === 0) return false;
+            
+            const typeValue = toFilterOptionValue(rule?.Checktype);
+            const typeMatch = filters.value.types.includes(typeValue);
+            
+            if (!typeMatch) return false;
+            
+            // 如果是规范审查，则需要进一步判断条文性质
+            if (typeValue === '规范审查') {
+                 // 如果条文性质一个都没选，那么“规范审查”类别的所有意见都不符合
+                if (filters.value.severities.length === 0) return false;
+                const severityValue = normalizeText(rule?.severity) ? toFilterOptionValue(rule?.severity) : EMPTY_FILTER_TOKEN;
+                return filters.value.severities.includes(severityValue);
+            }
+
+            return true;
+        };
+
+        // 核心数据上下文（供筛选统计、可用字段、导出共用）
+        const sourceData = computed(() => {
+            const rules = ensureArray(parsedJsonData.value.rules);
+            const results = ensureArray(parsedJsonData.value.results);
+            const ruleMap = new Map();
+            const passedRuleIds = new Set();
+            const failedRuleIds = new Set();
+            const ruleViolationCountMap = new Map();
+            const clauseCollator = new Intl.Collator('zh-CN', { numeric: true, sensitivity: 'base' });
+            
+            const normalizeRuleId = (id) => (id == null ? null : String(id));
+            const addRuleId = (set, id) => {
+                const normalized = normalizeRuleId(id);
+                if (!normalized) return;
+                set.add(normalized);
+            };
+            const addViolationCount = (id, count) => {
+                const normalized = normalizeRuleId(id);
+                if (!normalized) return;
+                const next = (ruleViolationCountMap.get(normalized) || 0) + (Number(count) || 0);
+                ruleViolationCountMap.set(normalized, next);
+            };
+            const normalizeClause = (value) => normalizeText(value);
+            
+            const buildRuleRows = (ruleIds) => {
+                const rows = ruleIds
+                    .map((ruleId) => ruleMap.get(ruleId))
+                    .filter(Boolean)
+                    .map((rule) => ({
+                        ruleName: normalizeText(rule?.standard) || '-',
+                        clause: normalizeClause(rule?.clause)
+                    }))
+                    .filter((item) => item.clause || item.ruleName !== '-')
+                    .sort((a, b) => {
+                        const standardCmp = clauseCollator.compare(a.ruleName, b.ruleName);
+                        if (standardCmp !== 0) return standardCmp;
+                        return clauseCollator.compare(a.clause, b.clause);
+                    });
+                return rows;
+            };
+            
+            const buildMergedRuleRows = (rows) => {
+                const groupMap = new Map();
+                rows.forEach((row) => {
+                    const key = row.ruleName || '-';
+                    if (!groupMap.has(key)) groupMap.set(key, new Set());
+                    if (row.clause) groupMap.get(key).add(row.clause);
+                });
+                return Array.from(groupMap.entries())
+                    .map(([ruleName, clauseSet]) => {
+                        const clauses = Array.from(clauseSet).sort((a, b) => clauseCollator.compare(a, b));
+                        return {
+                            ruleName,
+                            clause: clauses.join('，')
+                        };
+                    })
+                    .sort((a, b) => clauseCollator.compare(a.ruleName, b.ruleName));
+            };
+
+            // 预加载规则库
+            rules.forEach((rule) => {
+                if (rule?.id != null) {
+                    ruleMap.set(String(rule.id), rule);
+                }
+            });
+
+            let totalIssueComponents = 0;
+            let filteredIssueComponents = 0;
+            const selectedRules = new Map();
+            const issueRows = [];
+
+            // ==========================================
+            // ===== 【需求：四、审查构件数量统计】 =====
+            // ==========================================
+            // 初始化存放所有图纸中 各类构件（梁、柱、墙）的状态计数的变量
+            let sumBeamPass = 0, sumBeamFail = 0, sumBeamNot = 0;
+            let sumColuPass = 0, sumColuFail = 0, sumColuNot = 0;
+            let sumWallPass = 0, sumWallFail = 0, sumWallNot = 0;
+
+            const getIssueViolationCount = (issue, components) => {
+                const failCount = Number(issue?.failCount) || 0;
+                if (failCount > 0) return failCount;
+                return components.length;
+            };
+
+            // 【需求：五、审查条文信息统计前置准备】
+            // "根据当前Id是否出现在意见中ruleIds进行统计，若出现则看该意见components中的数组长度"
+            const ruleIssueCountsMap = new Map();
+
+            results.forEach((result) => {
+                const drawingName = normalizeText(result?.drawing) || '-';
+                
+                // 解析方法：循环读取"results"中每个图纸的"summary"字段
+                const summary = result?.summary || {};
+                
+                // 累计 BeamInfo(梁) 的构件数
+                const beam = summary.BeamInfo || {};
+                sumBeamPass += Number(beam.CheckpassedGJCount || 0);
+                sumBeamFail += Number(beam.CheckNotpassedGJCount || 0);
+                sumBeamNot += Number(beam.NotCheckGJCount || 0);
+
+                // 累计 ColuInfo(柱) 的构件数
+                const colu = summary.ColuInfo || {};
+                sumColuPass += Number(colu.CheckpassedGJCount || 0);
+                sumColuFail += Number(colu.CheckNotpassedGJCount || 0);
+                sumColuNot += Number(colu.NotCheckGJCount || 0);
+
+                // 累计 WallInfo(墙) 的构件数
+                const wall = summary.WallInfo || {};
+                sumWallPass += Number(wall.CheckpassedGJCount || 0);
+                sumWallFail += Number(wall.CheckNotpassedGJCount || 0);
+                sumWallNot += Number(wall.NotCheckGJCount || 0);
+
+                // 记录全局 passed 和 failed 的 ruleId
+                ensureArray(summary?.passed).forEach((ruleId) => addRuleId(passedRuleIds, ruleId));
+                ensureArray(summary?.failed).forEach((ruleId) => addRuleId(failedRuleIds, ruleId));
+                
+                ensureArray(result?.issues).forEach((issue) => {
+                    const rawComponents = ensureArray(issue?.components);
+                    totalIssueComponents += rawComponents.length;
+                    
+                    // 【新逻辑】统计审查意见数量给 rules
+                    // 只要当前Id出现在该意见的 ruleIds 或 TopruleId 中，就要累加此意见的数量
+                    const allIdsForStats = new Set();
+                    if (issue.TopruleId != null) allIdsForStats.add(String(issue.TopruleId));
+                    ensureArray(issue.ruleIds).forEach(id => allIdsForStats.add(String(id)));
+                    allIdsForStats.forEach(rId => {
+                        ruleIssueCountsMap.set(rId, (ruleIssueCountsMap.get(rId) || 0) + rawComponents.length);
+                    });
+
+                    // 【新逻辑】生成审查意见明细时：不再裂变，仅仅根据 TopruleId (或第一个 ruleIds)去 rules中找条文信息
+                    let primaryRuleId = issue.TopruleId != null ? String(issue.TopruleId) : null;
+                    if (!primaryRuleId && Array.isArray(issue.ruleIds) && issue.ruleIds.length > 0) {
+                        primaryRuleId = String(issue.ruleIds[0]);
+                    }
+                    if (!primaryRuleId) primaryRuleId = 'missing_id'; // 兼容无任何ID的极端异常数据
+
+                    const rule = ruleMap.get(primaryRuleId);
+                    
+                    // 【Bug修复1】如果意见找不到对应的规则，或者规则不符合筛选条件，则直接丢弃
+                    if (!rule) return;
+                    if (!isRuleMatched(rule)) return;
+
+                    let filteredComponents = rawComponents;
+                    if (filters.value.onlyAdopted) {
+                        filteredComponents = rawComponents.filter(c => c.userMarked === true);
+                    }
+
+                    if (filteredComponents.length === 0) return;
+
+                    const violationCount = filters.value.onlyAdopted ? 
+                        filteredComponents.length : 
+                        getIssueViolationCount(issue, filteredComponents);
+
+                    if (rule) {
+                        if (violationCount > 0) addRuleId(failedRuleIds, rule.id);
+                        else if (Number(issue?.passCount) > 0) addRuleId(passedRuleIds, rule.id);
+                        selectedRules.set(String(rule.id), rule);
+                        addViolationCount(rule.id, violationCount);
+                    }
+
+                    filteredIssueComponents += filteredComponents.length;
+
+                    if (!filters.value.listTypes.includes(LIST_TYPE_DETAIL)) return;
+                    
+                    filteredComponents.forEach((component) => {
+                        issueRows.push({
+                            index: String(issueRows.length + 1), // Explicitly output standard number
+                            drawingName: drawingName,
+                            component: normalizeText(component?.name) || '-',
+                            reviewComment: normalizeText(component?.message) || '-',
+                            standardName: rule ? normalizeText(rule.standard) : '-',
+                            clauseNo: rule ? normalizeText(rule.clause) : '-',
+                            type: rule ? normalizeText(rule.severity) : '-',
+                            isAdopted: component.userMarked ? '是' : '否'
+                        });
+                    });
+                });
+            });
+
+            // ==========================================
+            // ===== 【构件数量统计结果汇总输出】 =====
+            // ==========================================
+            // 3. 梁已审构件数（项目）：BeamInfo的CheckpassedGJCount和CheckNotpassedGJCount的总和
+            const checkedBeamTotal = sumBeamPass + sumBeamFail;
+            // 4. 梁未审构件数（项目）：BeamInfo的NotCheckGJCount的总和
+            const notCheckedBeamTotal = sumBeamNot;
+            // 5. 柱已审构件数（项目）：ColuInfo的CheckpassedGJCount和CheckNotpassedGJCount的总和
+            const checkedColuTotal = sumColuPass + sumColuFail;
+            // 6. 柱未审构件数（项目）：ColuInfo的NotCheckGJCount的总和
+            const notCheckedColuTotal = sumColuNot;
+            // 7. 墙已审构件数（项目）：WallInfo的CheckpassedGJCount和CheckNotpassedGJCount的总和
+            const checkedWallTotal = sumWallPass + sumWallFail;
+            // 8. 墙未审构件数（项目）：WallInfo的NotCheckGJCount的总和
+            const notCheckedWallTotal = sumWallNot;
+            // 1. 已审构件数（项目）：各个构件CheckpassedGJCount和CheckNotpassedGJCount的总和
+            const checkedComponentTotal = checkedBeamTotal + checkedColuTotal + checkedWallTotal;
+            // 2. 未审构件数（项目）：各个构件的NotCheckGJCount的总和
+            const notCheckedComponentTotal = notCheckedBeamTotal + notCheckedColuTotal + notCheckedWallTotal;
+
+            // ==========================================
+            // ===== 【需求：五、1、所有审查条文信息】 =====
+            // ==========================================
+            // "总数以rules为准"
+            const allRuleInfos = [];
+            rules.forEach((rule) => {
+                if (rule?.id == null) return;
+                const rId = String(rule.id);
+                // 审查结果判断逻辑：
+                // 遍历每一个图纸的summary的failed中，则为不通过 (failedRuleIds 已统计所有 failed 的 id)
+                // 若存在 passed 中，则为通过 (passedRuleIds)
+                // 否则为不涉及
+                let resultStatus = '不涉及';
+                if (failedRuleIds.has(rId)) resultStatus = '不通过';
+                else if (passedRuleIds.has(rId)) resultStatus = '通过';
+
+                // 生成名为【所有审查条文信息】的基础结构
+                allRuleInfos.push({
+                    ruleId: rId,
+                    standardName: normalizeText(rule.standard), // 规范名称，来自rules.standard
+                    clauseNo: normalizeText(rule.clause),       // 条文编号，来自rules.clause
+                    severity: normalizeText(rule.severity),     // 条文性质，来自rules.severity
+                    checkType: normalizeText(rule.Checktype),   // 审查类型，来自rules.Checktype
+                    checkItem: normalizeText(rule.item),        // 审查项目，来自rules.item
+                    issueCount: String(ruleIssueCountsMap.get(rId) || 0), // 审查意见数量
+                    reviewResult: resultStatus                  // 审查结果（分为通过，不通过，不涉及）
+                });
+            });
+
+            // ==========================================
+            // ===== 【需求：五、2、校审结果分类】 =====
+            // ==========================================
+            // 2.1、形成【通过规范条文信息】 筛选：审查类型（规范审查）审查结果（通过）
+            const passedRulesList = allRuleInfos.filter(r => r.checkType === '规范审查' && r.reviewResult === '通过');
+            // 2.2、形成【不涉及规范条文信息】 筛选：审查类型（规范审查）审查结果（不涉及）
+            const naRulesList = allRuleInfos.filter(r => r.checkType === '规范审查' && r.reviewResult === '不涉及');
+            // 2.3、形成【不通过规范条文信息】 筛选：审查类型（规范审查）审查结果（不通过）
+            const failedRulesList = allRuleInfos.filter(r => r.checkType === '规范审查' && r.reviewResult === '不通过');
+
+            // ==========================================
+            // ===== 【需求：五、3、校审结果分类（归并）】 =====
+            // ==========================================
+            // 针对上述三个列表，对其按照“条文名称(standardName)相同进行合并”
+            const buildMergedRuleRowsExtended = (list) => {
+                const map = new Map();
+                list.forEach(item => {
+                    const key = item.standardName || '-';
+                    if (!map.has(key)) map.set(key, { standardName: key, clauses: new Set(), issueCount: 0 });
+                    const group = map.get(key);
+                    // 同一规范名称的不同条文以、间隔
+                    if (item.clauseNo) group.clauses.add(item.clauseNo);
+                    // 同一规范名称的不同条文的审查意见数量的总和
+                    group.issueCount += Number(item.issueCount);
+                });
+                return Array.from(map.values()).map(g => ({
+                    standardName: g.standardName,
+                    clauseNo: Array.from(g.clauses).sort((a,b) => clauseCollator.compare(a,b)).join('、'),
+                    issueCount: String(g.issueCount)
+                })).sort((a,b) => clauseCollator.compare(a.standardName, b.standardName));
+            };
+
+            // 3.1、形成【通过规范条文信息(归并)】
+            const passedRulesMergedList = buildMergedRuleRowsExtended(passedRulesList);
+            // 3.2、形成【不涉及规范条文信息(归并)】
+            const naRulesMergedList = buildMergedRuleRowsExtended(naRulesList);
+            // 3.3、形成【不通过规范条文信息(归并)】
+            const failedRulesMergedList = buildMergedRuleRowsExtended(failedRulesList);
+
+            // ==========================================
+            // ===== 【需求：五、4、总数类】 =====
+            // ==========================================
+            // 基于上面已筛选出的【不通过规范条文】列表(failedRulesList)来统计源数据中条文的数量
+            // 4.1 规范审查违反条文数量 (审查类型为规范审查，结果为不通过的总数)
+            const failRuleCount = failedRulesList.length;
+            // 4.2 规范审查违反强制条文数量 (条文性质包含“强”)
+            const failRuleForceCount = failedRulesList.filter(r => r.severity.includes('强')).length;
+            // 4.4 规范审查违反应字条文数量 (条文性质包含“应”)
+            const failRuleYingCount = failedRulesList.filter(r => r.severity.includes('应')).length;
+            // 4.5 规范审查违反宜字条文数量 (条文性质包含“宜”)
+            const failRuleYiCount = failedRulesList.filter(r => r.severity.includes('宜')).length;
+            // 4.3 规范审查违反一般条文数量 (应或宜 的总和)
+            const failRuleGeneralCount = failRuleYingCount + failRuleYiCount;
+
+            // ==========================================
+            // ===== 【需求：五、5、审查类型审查项目统计信息】 =====
+            // ==========================================
+            // 按审查项目是否相同进行合并，统计审查结果和数量
+            const mergeByItemExtended = (list) => {
+                const map = new Map();
+                list.forEach(item => {
+                    const key = item.checkItem || '-';
+                    if (!map.has(key)) map.set(key, { checkType: item.checkType, checkItem: key, statuses: new Set(), issueCount: 0 });
+                    const group = map.get(key);
+                    group.statuses.add(item.reviewResult); // 收集该项目下的所有条文结果状态
+                    group.issueCount += Number(item.issueCount); // 审查意见数量总和
+                });
+                return Array.from(map.values()).map(g => {
+                    // 若有一个不通过，则为不通过；若全为不涉及，则为不涉及；否则为通过
+                    let res = '通过';
+                    if (g.statuses.has('不通过')) res = '不通过';
+                    else if (g.statuses.has('不涉及') && g.statuses.size === 1) res = '不涉及';
+                    return {
+                        checkType: g.checkType,
+                        checkItem: g.checkItem,
+                        reviewResult: res,
+                        issueCount: String(g.issueCount)
+                    };
+                });
+            };
+            // 5.1 设置筛选名称：形成【图模一致条文信息(按审查项目归并)】
+            const tuMoYiZhiMerged = mergeByItemExtended(allRuleInfos.filter(r => r.checkType === '图模一致'));
+
+            // ==========================================
+            // ===== 【需求：五、6、按审查类型统计 及 全局开关】 =====
+            // ==========================================
+            const typeStats = {};
+            // 读取json中的SupportChecktype中的每一个字段
+            Object.keys(parsedJsonData.value.supportChecktype || {}).forEach(type => {
+                // 1. 是否审查（bool）
+                const isSupported = parsedJsonData.value.supportChecktype[type];
+                
+                // 提取该类型下的所有条文，用来计算全局审查结果和意见数量总计
+                const rulesForType = allRuleInfos.filter(r => r.checkType === type);
+                
+                // 2. 审查结果：若其中有一个不通过则不通过；若全为不涉及则不涉及；否则通过
+                let overallStatus = '通过';
+                const statuses = new Set(rulesForType.map(r => r.reviewResult));
+                if (statuses.has('不通过')) overallStatus = '不通过';
+                else if (statuses.has('不涉及') && statuses.size === 1) overallStatus = '不涉及';
+                if (rulesForType.length === 0) overallStatus = '不涉及'; // 无条文默认归为不涉及
+
+                // 3. 审查意见数量：该审查类型下所有条文的审查意见数量总和
+                const sumCount = rulesForType.reduce((acc, r) => acc + Number(r.issueCount), 0);
+
+                // 生成按类型的动态拖动模块字段 (会在 availableFields 中展示)
+                typeStats[`typeSupported_${type}`] = Boolean(isSupported);
+                typeStats[`typeResult_${type}`] = overallStatus;
+                typeStats[`typeIssueCount_${type}`] = String(sumCount);
+            });
+
+            // 原始清单生成逻辑...
+            const sortedRules = Array.from(selectedRules.values()).sort((a, b) => Number(a.id) - Number(b.id));
+            const rulesList = filters.value.listTypes.includes(LIST_TYPE_RULE)
+                ? sortedRules.map((rule, index) => ({
+                    index: String(index + 1),
+                    standardName: normalizeText(rule?.standard),
+                    clauseNo: normalizeText(rule?.clause),
+                    type: normalizeText(rule?.severity),
+                    checkItem: normalizeText(rule?.item),
+                    violationCount: String(ruleViolationCountMap.get(String(rule?.id)) || 0)
+                }))
+                : [];
+
+            const severityHits = sortedRules.reduce((acc, rule) => {
+                const severity = normalizeText(rule?.severity);
+                if (severity.includes('强')) acc.force += 1;
+                if (severity.includes('应')) acc.ying += 1;
+                if (severity.includes('宜')) acc.yi += 1;
+                return acc;
+            }, { force: 0, ying: 0, yi: 0 });
+
+            const purePassedRuleIds = Array.from(passedRuleIds).filter((ruleId) => !failedRuleIds.has(ruleId));
+            const failedRuleIdsList = Array.from(failedRuleIds);
+            const passedRulesRaw = buildRuleRows(purePassedRuleIds);
+            const failedRulesRaw = buildRuleRows(failedRuleIdsList);
+            const passedRulesMerged = buildMergedRuleRows(passedRulesRaw);
+            const failedRulesMerged = buildMergedRuleRows(failedRulesRaw);
+
+            const projectMeta = parsedJsonData.value.project || {};
+            const drawingList = extractedDrawings.value.filter(Boolean);
+            const selectedTypesList = filters.value.types.map(toFilterLabel).filter((value) => normalizeText(value));
+            
+            // 核心修复：统一为所有未自带序号的循环数组追加序号
+            const addIndex = (arr) => arr.map((item, i) => ({ ...item, index: String(i + 1) }));
+
+            return {
+                projectName: normalizeText(basicInfo.value.projectName),
+                projectCode: normalizeText(basicInfo.value.projectCode),
+                stage: normalizeText(basicInfo.value.stage),
+                reviewer: normalizeText(basicInfo.value.reviewer),
+                designLead: normalizeText(basicInfo.value.designLead),
+                designer: normalizeText(basicInfo.value.designer),
+                reportDate: new Date().toLocaleDateString('zh-CN'),
+                sourceProjectName: normalizeText(projectMeta.name),
+                sourceProjectVersion: normalizeText(projectMeta.version),
+                sourceProjectDate: normalizeText(projectMeta.date),
+                drawingNames: drawingList.join('、'),
+                drawingNamesMultiline: drawingList.join('\n') || '-',
+                selectedListTypes: filters.value.listTypes.join('、') || '-',
+                exportRuleListEnabled: filters.value.listTypes.includes(LIST_TYPE_RULE),
+                exportIssueListEnabled: filters.value.listTypes.includes(LIST_TYPE_DETAIL),
+                selectedTypes: selectedTypesList.join('、') || '-',
+                selectedTypesMultiline: selectedTypesList.join('\n') || '-',
+                selectedSeverities: filters.value.severities.map(toFilterLabel).join('、') || '-',
+                totalIssuesRaw: totalIssueComponents,
+                totalIssues: filteredIssueComponents,
+                forceClauseViolationCount: severityHits.force,
+                yingClauseViolationCount: severityHits.ying,
+                yiClauseViolationCount: severityHits.yi,
+                generalClauseViolationCount: severityHits.ying + severityHits.yi,
+                rulesList,
+                issuesList: issueRows,
+                
+                // 给旧版归并增加序号
+                passedRulesRaw: addIndex(passedRulesRaw),
+                passedRulesMerged: addIndex(passedRulesMerged),
+                failedRulesRaw: addIndex(failedRulesRaw),
+                failedRulesMerged: addIndex(failedRulesMerged),
+
+                // --- 构件统计 ---
+                checkedComponentTotal, notCheckedComponentTotal,
+                checkedBeamTotal, notCheckedBeamTotal,
+                checkedColuTotal, notCheckedColuTotal,
+                checkedWallTotal, notCheckedWallTotal,
+
+                // --- 新增循环数组与合并 (全部包装 addIndex 赋予序号) ---
+                allRuleInfos: addIndex(allRuleInfos),
+                passedRulesList: addIndex(passedRulesList),
+                naRulesList: addIndex(naRulesList),
+                failedRulesList: addIndex(failedRulesList),
+                passedRulesMergedList: addIndex(passedRulesMergedList),
+                naRulesMergedList: addIndex(naRulesMergedList),
+                failedRulesMergedList: addIndex(failedRulesMergedList),
+                tuMoYiZhiMerged: addIndex(tuMoYiZhiMerged),
+
+                // --- 审查条文总数 ---
+                failRuleCount, failRuleForceCount, failRuleGeneralCount, failRuleYingCount, failRuleYiCount,
+
+                // 动态扩展的数据
+                ...typeStats
+            };
+        });
+
+        // 筛选统计属性
+        const issueStats = computed(() => ({
+            total: sourceData.value.totalIssuesRaw,
+            filtered: sourceData.value.totalIssues
+        }));
+
+        // Step 3: 导出设置
+        const exportSettings = ref({
+            fileName: '{工程名称}-PKPM智能审查清单-结构-{时间}',
+            paperSize: 'A4',
+            orientation: '纵向'
+        });
+
+        const templateLoaded = ref(false);
+        const rawTemplateContent = ref(null);
+        const templateName = ref('');
+        const defaultTemplateContent = ref(null);
+        const defaultTemplateName = ref('');
+        const templateMode = ref('default');
+        const isLoadingDefaultTemplate = ref(false);
+        const showTemplateMapping = computed(() => templateMode.value === 'custom' && templateLoaded.value);
+
+        const onTemplateConfigClick = () => {
+            configClickCount.value++;
+            if (configClickCount.value >= 10 && !testMode.value) {
+                testMode.value = true;
+                showMessage('已进入测试模式，显示所有可用数据字段', 'success');
+            }
+        };
+
+        // 可用字段（动态与筛选状态联动）
+        const availableFields = computed(() => {
+            const baseRuleChildren = [
+                { id: 'index', label: '序号' }, // 为所有底层条文清单增加序号支持
+                { id: 'standardName', label: '规范名称' },
+                { id: 'clauseNo', label: '条文编号' },
+                { id: 'severity', label: '条文性质' },
+                { id: 'checkType', label: '审查类型' },
+                { id: 'checkItem', label: '审查项目' },
+                { id: 'issueCount', label: '审查意见数量' },
+                { id: 'reviewResult', label: '审查结果' }
+            ];
+
+            const mergedRuleChildren = [
+                { id: 'index', label: '序号' }, // 为所有的归并循环增加序号支持
+                { id: 'standardName', label: '规范名称' },
+                { id: 'clauseNo', label: '条文编号' },
+                { id: 'issueCount', label: '审查意见数量' }
+            ];
+
+            const makeTableVisibilityField = (field) => {
+                const rows = sourceData.value[field.id];
+                const hasRows = Array.isArray(rows) && rows.length > 0;
+                return {
+                    id: `${field.id}Visible`,
+                    label: `是否具有${field.label}`,
+                    preview: String(hasRows),
+                    type: 'boolean',
+                    alwaysShow: false,
+                    value: hasRows,
+                    loopSourceId: field.id,
+                    aliases: [`是否有${field.label}`, `${field.label}是否具有`]
+                };
+            };
+
+            const dataFields = [
+                { id: 'projectName', label: '工程名称', preview: sourceData.value.projectName, type: 'text', alwaysShow: true },
+                { id: 'projectCode', label: '工程编号', preview: sourceData.value.projectCode, type: 'text', alwaysShow: true },
+                { id: 'stage', label: '审查阶段', preview: sourceData.value.stage, type: 'text', alwaysShow: true },
+                { id: 'reviewer', label: '审查人/机构', preview: sourceData.value.reviewer, type: 'text', alwaysShow: true },
+                { id: 'designLead', label: '设计负责人', preview: sourceData.value.designLead, type: 'text', alwaysShow: true },
+                { id: 'designer', label: '设计人', preview: sourceData.value.designer, type: 'text', alwaysShow: true },
+                { id: 'reportDate', label: '报告生成日期', preview: sourceData.value.reportDate, type: 'text' },
+                { id: 'sourceProjectName', label: '源数据项目名称', preview: sourceData.value.sourceProjectName || '-', type: 'text' },
+                { id: 'sourceProjectVersion', label: '软件版本', preview: sourceData.value.sourceProjectVersion || '-', type: 'text', alwaysShow: true },
+                { id: 'sourceProjectDate', label: '审查日期', preview: sourceData.value.sourceProjectDate || '-', type: 'text', alwaysShow: true },
+                { id: 'drawingNames', label: '审查图纸', preview: sourceData.value.drawingNames || '-', type: 'text' },
+                { id: 'drawingNamesMultiline', label: '审查图纸(换行)', preview: sourceData.value.drawingNamesMultiline || '-', type: 'text' },
+                { id: 'selectedListTypes', label: '清单目录', preview: sourceData.value.selectedListTypes, type: 'text' },
+                { id: 'exportRuleListEnabled', label: '是否导出审查项清单', preview: String(sourceData.value.exportRuleListEnabled), type: 'boolean' },
+                { id: 'exportIssueListEnabled', label: '是否导出意见明细单', preview: String(sourceData.value.exportIssueListEnabled), type: 'boolean' },
+                { id: 'selectedTypes', label: '审查类别', preview: sourceData.value.selectedTypes, type: 'text' },
+                { id: 'selectedTypesMultiline', label: '审查类别(换行)', preview: sourceData.value.selectedTypesMultiline, type: 'text' },
+                { id: 'selectedSeverities', label: '条文性质(筛选)', preview: sourceData.value.selectedSeverities, type: 'text' },
+                { id: 'totalIssues', label: '问题总数(筛选后)', preview: String(sourceData.value.totalIssues), type: 'text' },
+                { id: 'forceClauseViolationCount', label: '违反强制条文数量(筛选)', preview: String(sourceData.value.forceClauseViolationCount), type: 'text', alwaysShow: true },
+                { id: 'yingClauseViolationCount', label: '违反应字条文数量(筛选)', preview: String(sourceData.value.yingClauseViolationCount), type: 'text' },
+                { id: 'yiClauseViolationCount', label: '违反宜字条文数量(筛选)', preview: String(sourceData.value.yiClauseViolationCount), type: 'text' },
+                { id: 'generalClauseViolationCount', label: '违反一般条文数量(筛选)', preview: String(sourceData.value.generalClauseViolationCount), type: 'text', alwaysShow: true },
+
+                // 四、审查构件数量统计 (默认隐藏，统一替换为英文括号)
+                { id: 'checkedComponentTotal', label: '已审构件数(项目)', preview: String(sourceData.value.checkedComponentTotal), type: 'text' },
+                { id: 'notCheckedComponentTotal', label: '未审构件数(项目)', preview: String(sourceData.value.notCheckedComponentTotal), type: 'text' },
+                { id: 'checkedBeamTotal', label: '梁已审构件数(项目)', preview: String(sourceData.value.checkedBeamTotal), type: 'text' },
+                { id: 'notCheckedBeamTotal', label: '梁未审构件数(项目)', preview: String(sourceData.value.notCheckedBeamTotal), type: 'text' },
+                { id: 'checkedColuTotal', label: '柱已审构件数(项目)', preview: String(sourceData.value.checkedColuTotal), type: 'text' },
+                { id: 'notCheckedColuTotal', label: '柱未审构件数(项目)', preview: String(sourceData.value.notCheckedColuTotal), type: 'text' },
+                { id: 'checkedWallTotal', label: '墙已审构件数(项目)', preview: String(sourceData.value.checkedWallTotal), type: 'text' },
+                { id: 'notCheckedWallTotal', label: '墙未审构件数(项目)', preview: String(sourceData.value.notCheckedWallTotal), type: 'text' },
+
+                // 4.x 总数类 (全量统计) (默认隐藏)
+                { id: 'failRuleCount', label: '规范审查违反条文数量', preview: String(sourceData.value.failRuleCount), type: 'text' },
+                { id: 'failRuleForceCount', label: '规范审查违反强制条文数量', preview: String(sourceData.value.failRuleForceCount), type: 'text' },
+                { id: 'failRuleGeneralCount', label: '规范审查违反一般条文数量', preview: String(sourceData.value.failRuleGeneralCount), type: 'text' },
+                { id: 'failRuleYingCount', label: '规范审查违反应字条文数量', preview: String(sourceData.value.failRuleYingCount), type: 'text' },
+                { id: 'failRuleYiCount', label: '规范审查违反宜字条文数量', preview: String(sourceData.value.failRuleYiCount), type: 'text' },
+
+                // 原始审查结果 (标签剥离 emoji，改为纯净版)
+                {
+                    id: 'rulesList', label: '审查项清单(筛选)', preview: `共 ${sourceData.value.rulesList.length} 条`, type: 'loop',
+                    children: [
+                        { id: 'index', label: '序号' },
+                        { id: 'standardName', label: '规范名称' },
+                        { id: 'clauseNo', label: '条文编号' },
+                        { id: 'type', label: '类型' },
+                        { id: 'checkItem', label: '校审项' },
+                        { id: 'violationCount', label: '违反数量' }
+                    ]
+                },
+                {
+                    id: 'issuesList', label: '意见明细表', preview: `共 ${sourceData.value.issuesList.length} 条`, type: 'loop', alwaysShow: true,
+                    children: [
+                        { id: 'index', label: '序号' },
+                        { id: 'drawingName', label: '图名' },
+                        { id: 'component', label: '构件名' },
+                        { id: 'reviewComment', label: '审查意见' },
+                        { id: 'standardName', label: '规范名称' },
+                        { id: 'clauseNo', label: '条文编号' },
+                        { id: 'type', label: '类型' },
+                        { id: 'isAdopted', label: '是否采纳' }
+                    ]
+                },
+
+                // 五、全量审查条文信息 及 预设分组 (默认隐藏)
+                { id: 'allRuleInfos', label: '所有审查条文信息', preview: `共 ${sourceData.value.allRuleInfos?.length || 0} 条`, type: 'loop', children: baseRuleChildren },
+                { id: 'passedRulesList', label: '通过规范条文信息', preview: `共 ${sourceData.value.passedRulesList?.length || 0} 条`, type: 'loop', children: baseRuleChildren },
+                { id: 'naRulesList', label: '不涉及规范条文信息', preview: `共 ${sourceData.value.naRulesList?.length || 0} 条`, type: 'loop', children: baseRuleChildren },
+                { id: 'failedRulesList', label: '不通过规范条文信息', preview: `共 ${sourceData.value.failedRulesList?.length || 0} 条`, type: 'loop', children: baseRuleChildren },
+
+                // 归并统计 (默认隐藏)
+                { id: 'passedRulesMergedList', label: '通过规范条文信息(归并)', preview: `共 ${sourceData.value.passedRulesMergedList?.length || 0} 组`, type: 'loop', children: mergedRuleChildren },
+                { id: 'naRulesMergedList', label: '不涉及规范条文信息(归并)', preview: `共 ${sourceData.value.naRulesMergedList?.length || 0} 组`, type: 'loop', children: mergedRuleChildren },
+                { id: 'failedRulesMergedList', label: '不通过规范条文信息(归并)', preview: `共 ${sourceData.value.failedRulesMergedList?.length || 0} 组`, type: 'loop', children: mergedRuleChildren },
+                
+                // 5.1 图模一致按审查项目归并 (默认隐藏)
+                {
+                    id: 'tuMoYiZhiMerged', label: '图模一致条文信息(按审查项目归并)', preview: `共 ${sourceData.value.tuMoYiZhiMerged?.length || 0} 组`, type: 'loop',
+                    children: [
+                        { id: 'index', label: '序号' }, // 增加图模一致合并的序号
+                        { id: 'checkType', label: '审查类型' },
+                        { id: 'checkItem', label: '审查项目' },
+                        { id: 'reviewResult', label: '审查结果' },
+                        { id: 'issueCount', label: '审查意见数量' }
+                    ]
+                },
+
+                // 保留旧版归并用于向后兼容 (统一替换为英文括号)
+                {
+                    id: 'passedRulesRaw', label: '通过条文(未归并旧版)', preview: `共 ${sourceData.value.passedRulesRaw.length} 条`, type: 'loop',
+                    children: [
+                        { id: 'index', label: '序号' }, // 为兼容循环追加序号
+                        { id: 'ruleName', label: '规范条文名称' },
+                        { id: 'clause', label: '条文' }
+                    ]
+                },
+                {
+                    id: 'passedRulesMerged', label: '通过条文(归并旧版)', preview: `共 ${sourceData.value.passedRulesMerged.length} 组`, type: 'loop',
+                    children: [
+                        { id: 'index', label: '序号' }, // 为兼容循环追加序号
+                        { id: 'ruleName', label: '规范条文名称' },
+                        { id: 'clause', label: '条文' }
+                    ]
+                },
+                {
+                    id: 'failedRulesRaw', label: '不通过条文(未归并旧版)', preview: `共 ${sourceData.value.failedRulesRaw.length} 条`, type: 'loop',
+                    children: [
+                        { id: 'index', label: '序号' }, // 为兼容循环追加序号
+                        { id: 'ruleName', label: '规范条文名称' },
+                        { id: 'clause', label: '条文' }
+                    ]
+                },
+                {
+                    id: 'failedRulesMerged', label: '不通过条文(归并旧版)', preview: `共 ${sourceData.value.failedRulesMerged.length} 组`, type: 'loop',
+                    children: [
+                        { id: 'index', label: '序号' }, // 为兼容循环追加序号
+                        { id: 'ruleName', label: '规范条文名称' },
+                        { id: 'clause', label: '条文' }
+                    ]
+                }
+            ];
+
+            // 6. 按动态解析的审查类别(SupportChecktype)生成可用拖动模块 (默认隐藏)
+            Object.keys(parsedJsonData.value.supportChecktype || {}).forEach(type => {
+                dataFields.push({ id: `typeSupported_${type}`, label: `【${type}】是否审查`, preview: String(sourceData.value[`typeSupported_${type}`]), type: 'boolean' });
+                dataFields.push({ id: `typeResult_${type}`, label: `【${type}】审查结果`, preview: sourceData.value[`typeResult_${type}`], type: 'text' });
+                dataFields.push({ id: `typeIssueCount_${type}`, label: `【${type}】审查意见数量`, preview: sourceData.value[`typeIssueCount_${type}`], type: 'text' });
+            });
+
+            return dataFields.flatMap((field) => field.type === 'loop'
+                ? [makeTableVisibilityField(field), field]
+                : [field]);
+        });
+
+        const findAvailableFieldByTagName = (tagName) => findBestFieldMatch(tagName, availableFields.value);
+
+        const displayedFields = computed(() => {
+            // 恢复限制逻辑：非测试模式下只显示带有 alwaysShow: true 的基础核心字段
+            if (testMode.value) return availableFields.value;
+            return availableFields.value.filter(field => field.alwaysShow);
+        });
+
+        // 默认体验标签 (带有嵌套结构)
+        const templateTags = ref([
+            { name: '项目名称', type: 'text' },
+            { name: '审查阶段', type: 'text' },
+            { name: '日期', type: 'text' },
+            {
+                name: '问题汇总',
+                type: 'section',
+                sectionMode: 'loop',
+                children: [
+                    { name: '图纸名称', type: 'text' },
+                    { name: '构件', type: 'text' },
+                    { name: '描述', type: 'text' }
+                ]
+            }
+        ]);
+        const templateDelimiters = ref({ start: '{{', end: '}}' });
+
+        // 映射结果
+        const mappings = ref({});
+
+        // --- 逻辑方法 ---
+        const nextStep = () => {
+            if (currentStep.value === 1) {
+                if (jsonFiles.value.length === 0) {
+                    showMessage('请至少选择一个 JSON 审查报告文件', 'error');
+                    return;
+                }
+                ensureDefaultFilterSelection();
+                const dateStr = new Date().toISOString().split('T')[0];
+                const projectName = normalizeText(basicInfo.value.projectName) || normalizeText(parsedJsonData.value.project?.name) || '审查报告';
+                exportSettings.value.fileName = `${projectName}-PKPM智能审查清单-结构-${dateStr}`;
+            }
+            if (currentStep.value === 2 && filters.value.listTypes.length === 0) {
+                showMessage('请至少选择一个清单目录', 'error');
+                return;
+            }
+            if (currentStep.value < 3) {
+                currentStep.value++;
+                refreshIcons();
+            }
+        };
+
+        const cancel = () => {
+            if (confirm('确定要放弃当前所有设置并重新开始吗？')) {
+                location.reload();
+            }
+        };
+
+        // --- 文件处理 ---
+        const handleJsonDrop = (e) => processJsonFiles(e.dataTransfer.files);
+        const handleJsonSelect = (e) => {
+            processJsonFiles(e.target.files);
+            e.target.value = '';
+        };
+
+        const extractDrawingsFromRawData = (data) => {
+            const drawings = new Set();
+            ensureArray(data?.results).forEach((result) => {
+                const drawingName = normalizeText(result?.drawing);
+                if (drawingName) drawings.add(drawingName);
+            });
+            return Array.from(drawings);
+        };
+
+        const normalizeSummaryList = (list) => Array.from(new Set(ensureArray(list))).sort((a, b) => Number(a) - Number(b));
+        
+        // 核心修复：提取 JSON 时的规范化处理，增加对构件统计信息的提取和保留
+        const normalizeGJInfo = (info) => ({
+            AllGJCount: Number(info?.AllGJCount || 0),
+            CheckNotpassedGJCount: Number(info?.CheckNotpassedGJCount || 0),
+            CheckpassedGJCount: Number(info?.CheckpassedGJCount || 0),
+            NotCheckGJCount: Number(info?.NotCheckGJCount || 0)
+        });
+
+        const normalizeSummary = (summary) => ({
+            passed: normalizeSummaryList(summary?.passed),
+            failed: normalizeSummaryList(summary?.failed),
+            notApplicable: normalizeSummaryList(summary?.notApplicable),
+            // 保留梁、柱、墙的统计信息
+            BeamInfo: normalizeGJInfo(summary?.BeamInfo),
+            ColuInfo: normalizeGJInfo(summary?.ColuInfo),
+            WallInfo: normalizeGJInfo(summary?.WallInfo)
+        });
+        
+        const mergeSummary = (target, incoming) => {
+            ['passed', 'failed', 'notApplicable'].forEach((key) => {
+                target[key] = normalizeSummaryList([...(target[key] || []), ...(incoming[key] || [])]);
+            });
+            
+            // 合并多份 JSON 时，将构件的统计数量正确累加
+            ['BeamInfo', 'ColuInfo', 'WallInfo'].forEach((key) => {
+                if (!target[key]) target[key] = normalizeGJInfo();
+                if (incoming[key]) {
+                    target[key].AllGJCount += incoming[key].AllGJCount;
+                    target[key].CheckNotpassedGJCount += incoming[key].CheckNotpassedGJCount;
+                    target[key].CheckpassedGJCount += incoming[key].CheckpassedGJCount;
+                    target[key].NotCheckGJCount += incoming[key].NotCheckGJCount;
+                }
+            });
+        };
+
+        const normalizeComponent = (component) => ({
+            name: normalizeText(component?.name),
+            part: normalizeText(component?.part),
+            coords: ensureArray(component?.coords),
+            values: (component?.values && typeof component.values === 'object') ? { ...component.values } : {},
+            message: normalizeText(component?.message),
+            userMarked: Boolean(component?.userMarked)
+        });
+
+        // 核心重构：废弃原先的 extractRuleIds 和组件指纹去重（裂变），直接安全地提取原生 issues 数据
+        const normalizeResult = (result) => {
+            const normalizedIssues = ensureArray(result?.issues).map(issue => {
+                return {
+                    TopruleId: issue?.TopruleId,
+                    ruleIds: ensureArray(issue?.ruleIds), 
+                    passCount: Number(issue?.passCount) || 0,
+                    failCount: Number(issue?.failCount) || 0,
+                    components: ensureArray(issue?.components).map(normalizeComponent)
+                };
+            });
+
+            return {
+                drawing: normalizeText(result?.drawing),
+                summary: normalizeSummary(result?.summary),
+                issues: normalizedIssues
+            };
+        };
+
+        // 核心重构：在合并不同 JSON 文件时，仅作拼接，不做去重和裂变
+        const mergeResultEntry = (targetResult, incomingResult) => {
+            mergeSummary(targetResult.summary, incomingResult.summary);
+            targetResult.issues.push(...incomingResult.issues);
+        };
+
+        // --- 核心新功能：全方位扫描并向控制台输出异常漏网之鱼 ---
+        const checkAndLogAnomalies = (data) => {
+            console.warn('--- 🔍 开始分析 JSON 异常数据 ---');
+            const ruleIds = new Set(ensureArray(data.rules).map(r => String(r.id)));
+            const supportTypes = new Set(Object.keys(data.supportChecktype || {}));
+            
+            ensureArray(data.rules).forEach(r => {
+                if (r.Checktype && !supportTypes.has(r.Checktype)) {
+                    console.warn(`[异常] 规则ID [${r.id}] 的 Checktype (${r.Checktype}) 不在 SupportChecktype 列表中。`);
+                }
+            });
+
+            ensureArray(data.results).forEach(res => {
+                const passed = new Set(ensureArray(res.summary?.passed).map(String));
+                const failed = new Set(ensureArray(res.summary?.failed).map(String));
+                const drawing = res.drawing || '未知图纸';
+                
+                passed.forEach(id => {
+                    if (failed.has(id)) console.warn(`[异常] 图纸 [${drawing}] 中，规则ID ${id} 同时存在于 passed 和 failed 数组中。`);
+                    if (!ruleIds.has(id)) console.warn(`[异常] 图纸 [${drawing}] 中，passed 的规则ID ${id} 不在 rules 规范列表中。`);
+                });
+                failed.forEach(id => {
+                    if (!ruleIds.has(id)) console.warn(`[异常] 图纸 [${drawing}] 中，failed 的规则ID ${id} 不在 rules 规范列表中。`);
+                });
+
+                ensureArray(res.issues).forEach((iss, idx) => {
+                    const topId = iss.TopruleId != null ? String(iss.TopruleId) : null;
+                    const rIds = ensureArray(iss.ruleIds).map(String);
+                    
+                    if (topId && rIds.length > 0 && !rIds.includes(topId)) {
+                        console.warn(`[异常] 图纸 [${drawing}] 的第 ${idx+1} 条意见，TopruleId (${topId}) 不在其 ruleIds (${rIds.join(',')}) 数组中。`);
+                    }
+
+                    if (topId && !ruleIds.has(topId)) {
+                        console.warn(`[异常] 图纸 [${drawing}] 的第 ${idx+1} 条意见，TopruleId (${topId}) 在 rules 规范列表中找不到。`);
+                    }
+
+                    rIds.forEach(rid => {
+                        if (!ruleIds.has(rid)) {
+                            console.warn(`[异常] 图纸 [${drawing}] 的第 ${idx+1} 条意见，ruleIds 中的 (${rid}) 在 rules 规范列表中找不到。`);
+                        }
+                    });
+                });
+            });
+            console.warn('--- 🏁 异常数据分析完毕 ---');
+        };
+
+        const mergeJsonData = () => {
+            const rulesMap = new Map();
+            const resultMap = new Map();
+            const supportChecktype = {};
+            const project = { name: '', version: '', date: '' };
+            let emptyDrawingIndex = 0;
+
+            jsonFiles.value.forEach((file) => {
+                const data = file.data || {};
+                const currentProject = data.project || {};
+                ['name', 'version', 'date'].forEach((key) => {
+                    const value = normalizeText(currentProject[key]);
+                    if (value && !project[key]) {
+                        project[key] = value;
+                    }
+                });
+
+                if (data.SupportChecktype) {
+                    Object.assign(supportChecktype, data.SupportChecktype);
+                }
+
+                ensureArray(data.rules).forEach((rule) => {
+                    if (rule?.id == null) return;
+                    const existing = rulesMap.get(String(rule.id));
+                    rulesMap.set(String(rule.id), existing ? { ...existing, ...rule } : { ...rule });
+                });
+
+                // 【核心修复】为孤儿意见预先注入虚拟规范条文，保证他们能被正常归类为“未知分类(异常)”，而不至于被直接丢弃导致全选数量对不上
+                ensureArray(data.results).forEach((result) => {
+                    ensureArray(result.issues).forEach(iss => {
+                        let pId = iss.TopruleId != null ? String(iss.TopruleId) : null;
+                        if (!pId && Array.isArray(iss.ruleIds) && iss.ruleIds.length > 0) {
+                            pId = String(iss.ruleIds[0]);
+                        }
+                        if (!pId) pId = 'missing_id'; 
+
+                        if (!rulesMap.has(pId)) {
+                            rulesMap.set(pId, {
+                                id: pId,
+                                Checktype: '未知分类(异常)',
+                                severity: '',
+                                standard: '缺失的规范条文',
+                                clause: '-',
+                                item: '未知审查项'
+                            });
+                        }
+                    });
+                });
+
+                ensureArray(data.results).forEach((result) => {
+                    const normalized = normalizeResult(result);
+                    const drawingKey = normalized.drawing || `__EMPTY_DRAWING__${emptyDrawingIndex++}`;
+                    const existing = resultMap.get(drawingKey);
+                    if (!existing) {
+                        resultMap.set(drawingKey, normalized);
+                    } else {
+                        mergeResultEntry(existing, normalized);
+                    }
+                });
+            });
+
+            parsedJsonData.value = {
+                project,
+                supportChecktype,
+                rules: Array.from(rulesMap.values()),
+                results: Array.from(resultMap.values())
+            };
+            
+            // 每次装载或合并JSON完成时，全方位扫描异常并在终端输出
+            checkAndLogAnomalies(parsedJsonData.value);
+
+            autoMapFields();
+            refreshIcons();
+        };
+
+        const processJsonFiles = (files) => {
+            Array.from(files).forEach((file) => {
+                const isJsonFile = file.type === 'application/json' || file.name.toLowerCase().endsWith('.json');
+                if (!isJsonFile) {
+                    showMessage('请选择 JSON 格式的文件', 'error');
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = JSON.parse(e.target.result);
+                        jsonFiles.value.push({
+                            name: file.name,
+                            data,
+                            drawings: extractDrawingsFromRawData(data)
+                        });
+                        mergeJsonData();
+                        ensureDefaultFilterSelection();
+                        showMessage(`成功读取: ${file.name}`, 'success');
+                    } catch (error) {
+                        console.error(error);
+                        showMessage(`JSON 解析失败: ${file.name}`, 'error');
+                    }
+                };
+                reader.readAsText(file, 'utf-8');
+            });
+        };
+
+        const removeJsonFile = (index) => {
+            jsonFiles.value.splice(index, 1);
+            mergeJsonData();
+            ensureDefaultFilterSelection();
+            const jsonInput = document.querySelector('input[type="file"][accept=".json"]');
+            if (jsonInput) jsonInput.value = '';
+        };
+
+        const toggleFilter = (category, value) => {
+            const currentList = filters.value[category];
+            const index = currentList.indexOf(value);
+            if (index > -1) {
+                if (category === 'listTypes' && currentList.length === 1) {
+                    showMessage('清单目录至少保留一项', 'error');
+                    return;
+                }
+                currentList.splice(index, 1);
+            } else {
+                currentList.push(value);
+            }
+        };
+
+        // --- 拖拽映射逻辑 ---
+        const onDragStart = (e, fieldData) => {
+            e.dataTransfer.setData('application/json', JSON.stringify(fieldData));
+            e.dataTransfer.effectAllowed = 'copyMove';
+        };
+        const onDragOver = (e) => e.currentTarget.classList.add('drag-over');
+        const onDragLeave = (e) => e.currentTarget.classList.remove('drag-over');
+
+        const isSectionTag = (tag) => tag?.type === 'section' || tag?.type === 'condition' || tag?.type === 'loop';
+
+        const normalizeSectionMode = (mode) => (mode === 'loop' ? 'loop' : 'condition');
+
+        const getDefaultSectionMode = (tag) => {
+            if (tag?.sectionMode) return normalizeSectionMode(tag.sectionMode);
+            if (tag?.type === 'loop') return 'loop';
+            if (tag?.type === 'condition') return 'condition';
+            return ensureArray(tag?.children).length > 0 ? 'loop' : 'condition';
+        };
+
+        const getMappedTagType = (tag) => {
+            const mapData = mappings.value[tag?.name];
+            if (mapData?.sectionMode) return normalizeSectionMode(mapData.sectionMode);
+            if (mapData?.type === 'boolean') return 'condition';
+            if (mapData?.type === 'loop') return 'loop';
+            if (tag?.type === 'section') return getDefaultSectionMode(tag);
+            return tag?.type || 'text';
+        };
+
+        const getTagUiType = (tag) => {
+            if (isSectionTag(tag)) return getMappedTagType(tag);
+            return tag?.type || 'text';
+        };
+
+        const getTemplateTagText = (tag) => {
+            return tag?.name || '';
+        };
+
+        const getTagTypeLabel = (tag) => {
+            if (tag?.isImage) return '图片';
+            return '文本';
+        };
+
+        const getTypeBadgeLabel = (type) => {
+            if (type === 'loop') return '表格';
+            if (type === 'boolean' || type === 'condition') return '条件';
+            if (type === 'image') return '图片';
+            return '文本';
+        };
+
+        const getTypeBadgeClass = (type) => {
+            const normalized = type === 'boolean' ? 'condition' : (type === 'sub' ? 'text' : type);
+            const base = 'ml-2 px-2 py-0.5 rounded border text-[11px] leading-none shrink-0';
+            if (normalized === 'loop') return `${base} border-sky-200 bg-sky-50 text-sky-700`;
+            if (normalized === 'condition') return `${base} border-amber-200 bg-amber-50 text-amber-700`;
+            if (normalized === 'image') return `${base} border-emerald-200 bg-emerald-50 text-emerald-700`;
+            return `${base} border-gray-200 bg-white text-gray-500`;
+        };
+
+        const canSwitchTagType = (tag) => isSectionTag(tag);
+
+        const clearChildMappings = (tagName) => {
+            Object.keys(mappings.value).forEach((key) => {
+                if (key.startsWith(tagName + '.')) delete mappings.value[key];
+            });
+        };
+
+        const setTagUiType = (tag, mode) => {
+            if (!canSwitchTagType(tag)) return;
+            const nextMode = normalizeSectionMode(mode);
+            tag.sectionMode = nextMode;
+            if (tag.type !== 'section') tag.type = 'section';
+
+            const exactMatch = findExactFieldMatch(
+                tag.name,
+                availableFields.value.filter((field) => nextMode === 'loop' ? field.type === 'loop' : field.type === 'boolean')
+            );
+            if (exactMatch) {
+                mappings.value[tag.name] = {
+                    type: exactMatch.type,
+                    id: exactMatch.id,
+                    label: exactMatch.label,
+                    sectionMode: nextMode
+                };
+            } else {
+                const current = mappings.value[tag.name];
+                if (current) {
+                    if ((nextMode === 'condition' && current.type !== 'boolean') || (nextMode === 'loop' && current.type !== 'loop')) {
+                        delete mappings.value[tag.name];
+                    } else {
+                        current.sectionMode = nextMode;
+                    }
+                }
+            }
+            if (nextMode === 'condition') clearChildMappings(tag.name);
+            if (nextMode === 'condition') autoFillConditionChildren(tag.name);
+            if (nextMode === 'loop' && mappings.value[tag.name]?.type === 'loop') {
+                autoFillLoopChildren(tag.name, mappings.value[tag.name].id);
+            }
+            refreshIcons();
+        };
+
+        const getChildDropType = (tag) => (getTagUiType(tag) === 'loop' ? 'sectionChild' : 'text');
+
+        const isChildInputDisabled = (tag) => getTagUiType(tag) === 'loop' && !mappings.value[tag.name];
+
+        const getChildPlaceholder = (tag, child) => {
+            if (isChildInputDisabled(tag)) return '请先绑定表格内容...';
+            return child.isImage ? '拖入图片内容，或输入图片地址...' : '拖入对应内容，或输入固定文字...';
+        };
+
+        const findTagMetaByKey = (tagKey) => {
+            if (!tagKey.includes('.')) {
+                return templateTags.value.find((tag) => tag.name === tagKey) || null;
+            }
+            const [loopName, childName] = tagKey.split('.');
+            const loopTag = templateTags.value.find((tag) => tag.name === loopName && isSectionTag(tag));
+            if (!loopTag || !Array.isArray(loopTag.children)) return null;
+            return loopTag.children.find((child) => child.name === childName) || null;
+        };
+
+        const isDropTypeAllowed = (dragType, expectedType) => {
+            if (expectedType === 'section') return dragType === 'loop' || dragType === 'boolean';
+            if (expectedType === 'loop') return dragType === 'loop';
+            if (expectedType === 'condition') return dragType === 'boolean';
+            if (expectedType === 'text') return dragType === 'text' || dragType === 'boolean';
+            if (expectedType === 'sub') return dragType === 'sub';
+            if (expectedType === 'sectionChild') return dragType === 'sub' || dragType === 'text' || dragType === 'boolean';
+            return false;
+        };
+
+        const onDrop = (e, tagKey, expectedType, parentTagKey = null) => {
+            e.currentTarget.classList.remove('drag-over');
+            const dataStr = e.dataTransfer.getData('application/json');
+            if (!dataStr) return;
+
+            const data = JSON.parse(dataStr);
+            const tagMeta = findTagMetaByKey(tagKey);
+            const parentTagMeta = parentTagKey ? findTagMetaByKey(parentTagKey) : null;
+            const effectiveExpectedType = isSectionTag(tagMeta) ? 'section' : expectedType;
+            if (!isDropTypeAllowed(data.type, effectiveExpectedType)) {
+                const typeName = { text: '单项内容', loop: '表格内容', sub: '表格字段', boolean: '是/否内容', condition: '条件', section: '表格内容或是/否内容', sectionChild: '文本、表格字段或条件' };
+                showMessage(`这个内容不能放在这里：您拖动的是【${typeName[data.type] || '未知内容'}】，这里需要【${typeName[effectiveExpectedType]}】`, 'error');
+                return;
+            }
+
+            // 表格字段一致性检查：保证子节点与父节点来自同一个数据源
+            if ((expectedType === 'sub' || expectedType === 'sectionChild') && data.type === 'sub' && parentTagKey) {
+                const parentMapping = mappings.value[parentTagKey];
+                if (!parentMapping) {
+                    showMessage(`请先绑定【${parentTagKey}】这个表格内容`, 'error');
+                    return;
+                }
+                if (data.parentId !== parentMapping.id) {
+                    showMessage('请把同一组里的内容绑定到一起', 'error');
+                    return;
+                }
+            }
+
+            if (expectedType === 'sectionChild' && parentTagMeta && data.type === 'boolean') {
+                parentTagMeta.sectionMode = 'condition';
+                parentTagMeta.type = 'section';
+                clearChildMappings(parentTagKey);
+                mappings.value[parentTagKey] = { ...data, sectionMode: 'condition' };
+                autoFillConditionChildren(parentTagKey);
+                refreshIcons();
+                return;
+            }
+
+            if (expectedType === 'sectionChild' && parentTagMeta && data.type === 'text') {
+                parentTagMeta.sectionMode = 'condition';
+                parentTagMeta.type = 'section';
+                clearChildMappings(parentTagKey);
+                mappings.value[tagKey] = data;
+                autoFillConditionChildren(parentTagKey);
+                refreshIcons();
+                return;
+            }
+
+            if (effectiveExpectedType === 'section' && tagMeta && isSectionTag(tagMeta)) {
+                tagMeta.sectionMode = data.type === 'loop' ? 'loop' : 'condition';
+                tagMeta.type = 'section';
+            }
+
+            mappings.value[tagKey] = effectiveExpectedType === 'section'
+                ? { ...data, sectionMode: data.type === 'loop' ? 'loop' : 'condition' }
+                : data;
+
+            if ((effectiveExpectedType === 'loop' || effectiveExpectedType === 'section') && data.type === 'loop') {
+                autoFillLoopChildren(tagKey, data.id);
+            } else if (data.type === 'boolean') {
+                clearChildMappings(tagKey);
+                autoFillConditionChildren(tagKey);
+            }
+            refreshIcons();
+        };
+
+        // 处理键盘手动文本输入
+        const onManualInput = (e, tagKey) => {
+            const value = e.target.value;
+            if (value === '') {
+                delete mappings.value[tagKey];
+            } else {
+                mappings.value[tagKey] = { type: 'manual', value, label: value };
+            }
+        };
+
+        const removeMapping = (tagKey) => {
+            delete mappings.value[tagKey];
+            // 级联删除：如果删除了外层区段，其底下的子项映射也应该失效并删除
+            Object.keys(mappings.value).forEach((key) => {
+                if (key.startsWith(tagKey + '.')) {
+                    delete mappings.value[key];
+                }
+            });
+            refreshIcons();
+        };
+
+        const autoFillLoopChildren = (loopTagName, loopSourceId) => {
+            const loopTag = templateTags.value.find(tag => tag.name === loopTagName && isSectionTag(tag));
+            const sourceLoop = availableFields.value.find(field => field.id === loopSourceId && field.type === 'loop');
+            if (!loopTag || !sourceLoop || !Array.isArray(loopTag.children) || !Array.isArray(sourceLoop.children)) {
+                return;
+            }
+
+            loopTag.children.forEach((childTag) => {
+                const childKey = `${loopTagName}.${childTag.name}`;
+                const existing = mappings.value[childKey];
+                if (existing && existing.type === 'manual') return;
+
+                // 核心修改 3：应用双重最佳匹配
+                const matchedChild = findBestFieldMatch(childTag.name, sourceLoop.children);
+
+                if (!matchedChild) {
+                    delete mappings.value[childKey];
+                    return;
+                }
+
+                mappings.value[childKey] = {
+                    type: 'sub',
+                    parentId: loopSourceId,
+                    id: matchedChild.id,
+                    label: matchedChild.label
+                };
+            });
+        };
+
+        const autoFillConditionChildren = (sectionTagName) => {
+            const sectionTag = templateTags.value.find(tag => tag.name === sectionTagName && isSectionTag(tag));
+            if (!sectionTag || !Array.isArray(sectionTag.children)) return;
+
+            const candidateFields = availableFields.value.filter((field) => {
+                return field.type === 'text' || field.type === 'boolean' || field.type === 'image';
+            });
+
+            sectionTag.children.forEach((childTag) => {
+                const childKey = `${sectionTagName}.${childTag.name}`;
+                const existing = mappings.value[childKey];
+                if (existing) return;
+
+                const match = findBestFieldMatch(childTag.name, candidateFields);
+                if (!match) {
+                    return;
+                }
+
+                mappings.value[childKey] = {
+                    type: match.type,
+                    id: match.id,
+                    label: match.label
+                };
+            });
+        };
+
+        const autoMapFields = () => {
+            templateTags.value.forEach((tag) => {
+                if (mappings.value[tag.name]) {
+                    if (tag.type === 'section' && getTagUiType(tag) === 'condition') {
+                        autoFillConditionChildren(tag.name);
+                    }
+                    if (tag.type === 'section' && getTagUiType(tag) === 'loop' && mappings.value[tag.name].type === 'loop') {
+                        autoFillLoopChildren(tag.name, mappings.value[tag.name].id);
+                    }
+                    return;
+                }
+                
+                // 核心修改 4：应用双重最佳匹配
+                const candidateFields = availableFields.value.filter((field) => {
+                    if (tag.type === 'condition') return field.type === 'boolean';
+                    if (tag.type === 'section') return field.type === 'boolean' || field.type === 'loop';
+                    if (tag.type === 'text') return field.type === 'text' || field.type === 'boolean';
+                    return field.type === tag.type;
+                });
+                const match = findBestFieldMatch(tag.name, candidateFields);
+                
+                if (!match) {
+                    if (tag.type === 'section') tag.sectionMode = getDefaultSectionMode(tag);
+                    if (tag.type === 'section' && getTagUiType(tag) === 'condition') {
+                        autoFillConditionChildren(tag.name);
+                    }
+                    return;
+                }
+
+                if (tag.type === 'section') tag.sectionMode = match.type === 'loop' ? 'loop' : 'condition';
+                mappings.value[tag.name] = {
+                    type: match.type,
+                    id: match.id,
+                    label: match.label,
+                    ...(tag.type === 'section' ? { sectionMode: tag.sectionMode } : {})
+                };
+                if (match.type === 'loop') {
+                    autoFillLoopChildren(tag.name, match.id);
+                } else if (tag.type === 'section') {
+                    autoFillConditionChildren(tag.name);
+                }
+            });
+        };
+
+        // --- 模板解析读取部分 (用于提供给UI界面的标签池) ---
+        const normalizeTemplateTagName = (rawTag) => {
+            const txt = normalizeText(rawTag);
+            if (!txt) return '';
+            if (txt.startsWith('%%')) return txt.slice(2).trim();
+            const first = txt[0];
+            if (['#', '?', '/', '^', '.', '%'].includes(first)) return txt.slice(1).trim();
+            return txt;
+        };
+
+        const inferSectionMode = (sectionName, children) => {
+            const matchedField = findAvailableFieldByTagName(sectionName);
+            if (matchedField?.type === 'loop') return 'loop';
+            if (matchedField?.type === 'boolean') return 'condition';
+            return ensureArray(children).length > 0 ? 'loop' : 'condition';
+        };
+
+        const decodeXmlText = (value) => {
+            if (!value) return '';
+            return value
+                .replace(/&lt;/g, '<')
+                .replace(/&gt;/g, '>')
+                .replace(/&amp;/g, '&')
+                .replace(/&quot;/g, '"')
+                .replace(/&apos;/g, "'");
+        };
+
+        const orderWordXmlPaths = (paths) => {
+            const score = (path) => {
+                if (path === 'word/document.xml') return 0;
+                if (/^word\/header\d+\.xml$/i.test(path)) return 1;
+                if (/^word\/footer\d+\.xml$/i.test(path)) return 2;
+                return 3;
+            };
+            return [...paths].sort((a, b) => {
+                const diff = score(a) - score(b);
+                return diff !== 0 ? diff : a.localeCompare(b);
+            });
+        };
+
+        const extractTemplateTags = (zip) => {
+            const rawPaths = Object.keys(zip.files).filter((name) => name.startsWith('word/') && name.endsWith('.xml'));
+            const paths = orderWordXmlPaths(rawPaths);
+            const orderedTags = [];
+            const delimiterPairs = new Map();
+            const registerDelimiters = (start, end, count = 1) => {
+                if (!start || !end) return;
+                const key = `${start}\u0000${end}`;
+                delimiterPairs.set(key, { start, end, count: (delimiterPairs.get(key)?.count || 0) + count });
+            };
+            const collectTagsByDelimiter = (mergedText, start, end, options = {}) => {
+                const entries = [];
+                let position = 0;
+                while ((position = mergedText.indexOf(start, position)) !== -1) {
+                    const openIndex = position;
+                    if (options.skipDoubleBraceParts && (
+                        mergedText[position - 1] === '{' ||
+                        mergedText[position + 1] === '{'
+                    )) {
+                        position += start.length;
+                        continue;
+                    }
+                    position += start.length;
+                    const closeIndex = mergedText.indexOf(end, position);
+                    if (closeIndex === -1) break;
+                    if (options.skipDoubleBraceParts && (
+                        mergedText[closeIndex - 1] === '}' ||
+                        mergedText[closeIndex + 1] === '}'
+                    )) {
+                        position = closeIndex + end.length;
+                        continue;
+                    }
+                    const tag = normalizeText(mergedText.slice(position, closeIndex));
+                    if (tag) entries.push({ index: openIndex, tag });
+                    position = closeIndex + end.length;
+                }
+                return entries;
+            };
+
+            paths.forEach((path) => {
+                const xml = zip.files[path].asText();
+                const textChunks = [];
+                const textNodeRegex = /<(?:w:t|w:instrText)\b[^>]*>([\s\S]*?)<\/(?:w:t|w:instrText)>/g;
+                let textMatch;
+                while ((textMatch = textNodeRegex.exec(xml)) !== null) {
+                    textChunks.push(decodeXmlText(textMatch[1]));
+                }
+                const mergedText = textChunks.join('');
+                // 仅用于读取以生成左侧 UI，不对原始 XML 做任何修改
+                const doubleEntries = collectTagsByDelimiter(mergedText, '{{', '}}');
+                if (doubleEntries.length > 0) registerDelimiters('{{', '}}', doubleEntries.length);
+                const singleEntries = collectTagsByDelimiter(mergedText, '{', '}', { skipDoubleBraceParts: true });
+                if (singleEntries.length > 0) registerDelimiters('{', '}', singleEntries.length);
+                [...doubleEntries, ...singleEntries]
+                    .sort((a, b) => a.index - b.index)
+                    .forEach((entry) => orderedTags.push(entry.tag));
+            });
+
+            const delimiter = Array.from(delimiterPairs.values()).sort((a, b) => b.count - a.count)[0] || { start: '{{', end: '}}' };
+            return { tags: orderedTags, delimiters: { start: delimiter.start, end: delimiter.end } };
+        };
+
+        const buildTemplateTagTree = (orderedTags) => {
+            const rootTags = [];
+            const rootTextMap = new Map();
+            const conditionMap = new Map();
+            const loopMap = new Map();
+            const loopChildSetMap = new Map();
+            const sectionStack = [];
+
+            const addConditionTag = (tagName) => {
+                if (!tagName) return;
+                const item = getOrCreateSection(tagName);
+                item.hasInvertedSection = true;
+                conditionMap.set(tagName, item);
+            };
+
+            const getOrCreateSection = (sectionName) => {
+                if (conditionMap.has(sectionName)) return conditionMap.get(sectionName);
+                if (loopMap.has(sectionName)) return loopMap.get(sectionName);
+                const sectionTag = { name: sectionName, type: 'section', sectionMode: 'condition', children: [] };
+                loopMap.set(sectionName, sectionTag);
+                loopChildSetMap.set(sectionName, new Set());
+                rootTags.push(sectionTag);
+                return sectionTag;
+            };
+
+            const addRootTextTag = (tagName, isImageTag, imageCentered) => {
+                if (loopMap.has(tagName)) return;
+                const existing = rootTextMap.get(tagName);
+                if (existing) {
+                    if (isImageTag) {
+                        existing.isImage = true;
+                        existing.imageCentered = Boolean(existing.imageCentered || imageCentered);
+                    }
+                    return;
+                }
+                const item = { name: tagName, type: 'text', isImage: Boolean(isImageTag), imageCentered: Boolean(imageCentered) };
+                rootTextMap.set(tagName, item);
+                rootTags.push(item);
+            };
+
+            const addSectionChildTag = (sectionName, childName, isImageTag, imageCentered) => {
+                const sectionTag = getOrCreateSection(sectionName);
+                const childSet = loopChildSetMap.get(sectionName);
+                if (!childSet) return;
+                if (childSet.has(childName)) {
+                    const existedChild = sectionTag.children.find((child) => child.name === childName);
+                    if (existedChild && isImageTag) {
+                        existedChild.isImage = true;
+                        existedChild.imageCentered = Boolean(existedChild.imageCentered || imageCentered);
+                    }
+                    return;
+                }
+                childSet.add(childName);
+                sectionTag.children.push({ name: childName, type: 'text', isImage: Boolean(isImageTag), imageCentered: Boolean(imageCentered) });
+            };
+
+            orderedTags.forEach((rawTag) => {
+                const tag = normalizeText(rawTag);
+                if (!tag) return;
+
+                const first = tag[0];
+                if (first === '#' || first === '?' || first === '^') { // 此处保留?的读取是为了兼容之前部分用户在UI看到的内容
+                    const sectionName = normalizeTemplateTagName(tag);
+                    if (!sectionName || sectionName === '.') return;
+                    const sectionTag = getOrCreateSection(sectionName);
+                    if (first === '^') {
+                        sectionTag.hasInvertedSection = true;
+                    } else {
+                        sectionStack.push(sectionName);
+                    }
+                    return;
+                }
+
+                if (first === '/') {
+                    const sectionName = normalizeTemplateTagName(tag);
+                    if (!sectionName) {
+                        sectionStack.pop();
+                        return;
+                    }
+                    while (sectionStack.length > 0) {
+                        const top = sectionStack.pop();
+                        if (top === sectionName) break;
+                    }
+                    return;
+                }
+                const plainTagName = normalizeTemplateTagName(tag);
+                if (!plainTagName || plainTagName === '.') return;
+                const isImageTag = tag.startsWith('%');
+                const imageCentered = tag.startsWith('%%');
+
+                const activeSection = sectionStack[sectionStack.length - 1];
+                if (activeSection) {
+                    addSectionChildTag(activeSection, plainTagName, isImageTag, imageCentered);
+                } else {
+                    addRootTextTag(plainTagName, isImageTag, imageCentered);
+                }
+            });
+
+            rootTags.forEach((tag) => {
+                if (tag.type === 'section') {
+                    tag.sectionMode = inferSectionMode(tag.name, tag.children);
+                }
+            });
+
+            return rootTags;
+        };
+
+        const loadTemplateBuffer = (buffer, name = '模板', silentSuccess = false, mode = 'custom') => {
+            rawTemplateContent.value = buffer;
+            templateName.value = name;
+            templateMode.value = mode;
+            templateLoaded.value = extractTagsFromDocx(buffer);
+            if (!templateLoaded.value) {
+                rawTemplateContent.value = null;
+                templateName.value = '';
+            }
+            if (templateLoaded.value && !silentSuccess) {
+                showMessage(`模板加载并解析成功：${name}`, 'success');
+            }
+            return templateLoaded.value;
+        };
+
+        const toArrayBuffer = (value) => {
+            if (!value) return null;
+            if (value instanceof ArrayBuffer) return value;
+            if (ArrayBuffer.isView(value)) {
+                return value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength);
+            }
+            if (Array.isArray(value)) return new Uint8Array(value).buffer;
+            if (value.type === 'Buffer' && Array.isArray(value.data)) return new Uint8Array(value.data).buffer;
+            return null;
+        };
+
+        const getFileNameFromPath = (pathValue, fallback = 'CheckList.json') => {
+            const text = normalizeText(pathValue);
+            if (!text) return fallback;
+            return text.split(/[\\/]/).filter(Boolean).pop() || fallback;
+        };
+
+        const addJsonContent = (content, name = 'CheckList.json', sourcePath = '') => {
+            const data = JSON.parse(content);
+            jsonFiles.value.push({
+                name: name || getFileNameFromPath(sourcePath),
+                data,
+                drawings: extractDrawingsFromRawData(data),
+                path: sourcePath || ''
+            });
+            return data;
+        };
+
+        const isAbsoluteLocalPath = (pathValue) => {
+            const value = normalizeText(pathValue);
+            return /^[a-zA-Z]:[\\/]/.test(value) || /^\\\\/.test(value);
+        };
+
+        const getLocalServerFileUrl = (pathValue) => {
+            const value = normalizeText(pathValue);
+            if (!value || !isAbsoluteLocalPath(value)) return '';
+            if (!/^https?:$/i.test(window.location.protocol)) return '';
+            const url = new URL('__pkpm_local_file__', window.location.href);
+            url.searchParams.set('path', value);
+            return url.toString();
+        };
+
+        const decodeBridgeTextResult = (result) => {
+            if (typeof result === 'string') return result;
+            if (result?.content != null) return String(result.content);
+            if (result?.text != null) return String(result.text);
+            const buffer = toArrayBuffer(result?.buffer ?? result);
+            if (buffer && typeof TextDecoder !== 'undefined') {
+                return new TextDecoder('utf-8').decode(buffer);
+            }
+            return '';
+        };
+
+        const readTextByDesktopBridge = async (pathValue) => {
+            const bridge = window?.pkpmDesktopBridge;
+            if (!bridge) return '';
+            const methodNames = ['readJsonFile', 'readTextFile', 'readLocalFile', 'readFileAsText', 'readFile'];
+            for (const methodName of methodNames) {
+                const fn = bridge[methodName];
+                if (typeof fn !== 'function') continue;
+                try {
+                    const result = await fn(pathValue);
+                    const text = decodeBridgeTextResult(result);
+                    if (text) return text;
+                } catch (error) {
+                    console.warn(`桌面端读取 JSON 失败：${methodName}(path)`, error);
+                }
+                try {
+                    const result = await fn({ path: pathValue });
+                    const text = decodeBridgeTextResult(result);
+                    if (text) return text;
+                } catch (error) {
+                    console.warn(`桌面端读取 JSON 失败：${methodName}({path})`, error);
+                }
+            }
+            return '';
+        };
+
+        const fetchTextByPath = async (pathValue) => {
+            const value = normalizeText(pathValue);
+            if (!value) return '';
+            const localServerUrl = getLocalServerFileUrl(value);
+            const url = localServerUrl || encodeURI(value);
+            try {
+                const response = await fetch(url, { cache: 'no-store' });
+                if (!response.ok) return '';
+                return await response.text();
+            } catch (error) {
+                console.warn('读取 JSON 路径失败', error);
+                return '';
+            }
+        };
+
+        const fetchArrayBufferByPath = async (pathValue) => {
+            const value = normalizeText(pathValue);
+            if (!value) return null;
+            const localServerUrl = getLocalServerFileUrl(value);
+            const url = localServerUrl || encodeURI(value);
+            try {
+                const response = await fetch(url, { cache: 'no-store' });
+                if (!response.ok) return null;
+                return await response.arrayBuffer();
+            } catch (error) {
+                console.warn('读取模板路径失败', error);
+                return null;
+            }
+        };
+
+        const getJsonPathsFromUrl = () => {
+            const params = new URLSearchParams(window.location.search);
+            const paths = [];
+            URL_JSON_PATH_PARAM_NAMES.forEach((name) => {
+                params.getAll(name).forEach((value) => {
+                    normalizeText(value).split(/[;；|]/).forEach((item) => {
+                        const pathValue = normalizeText(item);
+                        if (pathValue) paths.push(pathValue);
+                    });
+                });
+            });
+            return Array.from(new Set(paths));
+        };
+
+        const loadJsonPathsFromUrl = async (silent = true) => {
+            const paths = getJsonPathsFromUrl();
+            if (paths.length === 0) return false;
+
+            let loadedCount = 0;
+            const failed = [];
+            for (const pathValue of paths) {
+                if (jsonFiles.value.some((file) => normalizeText(file.path) === pathValue)) continue;
+                const text = await readTextByDesktopBridge(pathValue) || await fetchTextByPath(pathValue);
+                if (!text) {
+                    failed.push(pathValue);
+                    continue;
+                }
+                try {
+                    addJsonContent(text, getFileNameFromPath(pathValue), pathValue);
+                    loadedCount += 1;
+                } catch (error) {
+                    console.error(error);
+                    failed.push(pathValue);
+                }
+            }
+
+            if (loadedCount > 0) {
+                mergeJsonData();
+                ensureDefaultFilterSelection();
+                autoMapFields();
+                refreshIcons();
+            }
+            if (!silent) {
+                if (loadedCount > 0 && failed.length === 0) showMessage(`已加载 JSON：${loadedCount} 个`, 'success');
+                else if (loadedCount > 0) showMessage(`已加载 JSON：${loadedCount} 个；${failed.length} 个读取失败`, 'info');
+                else showMessage('无法读取 URL 指定的 JSON 文件，请手动选择。', 'error');
+            }
+            return loadedCount > 0;
+        };
+
+        const loadStartupPayload = (payload) => {
+            const result = { jsonCount: 0, templateLoaded: false };
+            if (!payload) return result;
+
+            let loadedJsonCount = 0;
+            ensureArray(payload.jsonFiles).forEach((file) => {
+                try {
+                    const parsed = JSON.parse(file.content);
+                    jsonFiles.value.push({
+                        name: file.name,
+                        data: parsed,
+                        drawings: extractDrawingsFromRawData(parsed)
+                    });
+                    loadedJsonCount += 1;
+                } catch (error) {
+                    console.error('Failed to parse startup JSON:', file.name, error);
+                    showMessage(`Failed to parse startup JSON: ${file.name}`, 'error');
+                }
+            });
+
+            if (loadedJsonCount > 0) {
+                mergeJsonData();
+                ensureDefaultFilterSelection();
+                showMessage(`Loaded ${loadedJsonCount} JSON file(s) from command line`, 'success');
+            }
+            result.jsonCount = loadedJsonCount;
+
+            if (payload.template?.buffer) {
+                const buffer = toArrayBuffer(payload.template.buffer);
+                if (buffer) {
+                    const payloadTemplateName = payload.template.name || 'template.docx';
+                    const loaded = loadTemplateBuffer(buffer, payloadTemplateName, false, 'default');
+                    if (loaded) {
+                        defaultTemplateContent.value = buffer;
+                        defaultTemplateName.value = payloadTemplateName;
+                        result.templateLoaded = true;
+                    }
+                } else {
+                    showMessage('Failed to load startup template', 'error');
+                }
+            }
+
+            ensureArray(payload.errors).forEach((errorText) => {
+                showMessage(errorText, 'error');
+            });
+
+            return result;
+        };
+
+        const handleTemplateSelect = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            if (!file.name.toLowerCase().endsWith('.docx')) {
+                showMessage('请选择 .docx 格式', 'error');
+                e.target.value = '';
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const previousBuffer = rawTemplateContent.value;
+                const previousName = templateName.value;
+            const previousMode = templateMode.value;
+            const previousLoaded = templateLoaded.value;
+            const previousTags = templateTags.value;
+            const previousDelimiters = { ...templateDelimiters.value };
+            const previousMappings = { ...mappings.value };
+            const loaded = loadTemplateBuffer(event.target.result, file.name, false, 'custom');
+            if (!loaded) {
+                rawTemplateContent.value = previousBuffer;
+                templateName.value = previousName;
+                templateMode.value = previousMode;
+                templateLoaded.value = previousLoaded;
+                templateTags.value = previousTags;
+                templateDelimiters.value = previousDelimiters;
+                mappings.value = previousMappings;
+                showMessage('自定义模板解析失败，已保留当前模板', 'error');
+            }
+            };
+            reader.onerror = () => {
+                templateLoaded.value = false;
+                rawTemplateContent.value = null;
+                templateName.value = '';
+                showMessage('模板读取失败，请重试', 'error');
+            };
+            reader.readAsArrayBuffer(file);
+            e.target.value = '';
+        };
+
+        const loadBuiltinTemplate = async () => {
+            isLoadingDefaultTemplate.value = true;
+            const urlParams = new URLSearchParams(window.location.search);
+            const templateParam = urlParams.get('template');
+            const candidates = templateParam ? [templateParam, ...BUILTIN_TEMPLATE_CANDIDATES] : BUILTIN_TEMPLATE_CANDIDATES;
+
+            try {
+                const bridgeReadTemplate = window?.pkpmDesktopBridge?.readBuiltinTemplate;
+                if (typeof bridgeReadTemplate === 'function') {
+                    for (const fileName of candidates) {
+                        try {
+                            const bridgeResult = await bridgeReadTemplate(fileName);
+                            const buffer = bridgeResult instanceof ArrayBuffer
+                                ? bridgeResult
+                                : (ArrayBuffer.isView(bridgeResult)
+                                    ? bridgeResult.buffer.slice(bridgeResult.byteOffset, bridgeResult.byteOffset + bridgeResult.byteLength)
+                                    : null);
+                            if (!buffer) continue;
+                            const loaded = loadTemplateBuffer(buffer, fileName, true, 'default');
+                            if (loaded) {
+                                defaultTemplateContent.value = buffer;
+                                defaultTemplateName.value = fileName;
+                                showMessage(`已自动加载模板：${fileName}`, 'success');
+                                return true;
+                            }
+                        } catch {
+                            // continue
+                        }
+                    }
+                }
+
+                for (const fileName of candidates) {
+                    try {
+                        const buffer = await fetchArrayBufferByPath(fileName);
+                        if (!buffer) continue;
+                        const loaded = loadTemplateBuffer(buffer, fileName, true, 'default');
+                        if (loaded) {
+                            defaultTemplateContent.value = buffer;
+                            defaultTemplateName.value = fileName;
+                            showMessage(`已自动加载同目录模板：${fileName}`, 'success');
+                            return true;
+                        }
+                    } catch {
+                        // continue to next candidate
+                    }
+                }
+
+                return false;
+            } finally {
+                isLoadingDefaultTemplate.value = false;
+            }
+        };
+
+        const useDefaultTemplate = async () => {
+            if (defaultTemplateContent.value) {
+                loadTemplateBuffer(defaultTemplateContent.value, defaultTemplateName.value || '默认模板', true, 'default');
+                showMessage('已切换为默认模板', 'success');
+                return true;
+            }
+            const loaded = await loadBuiltinTemplate();
+            if (!loaded) showMessage('未找到默认模板，请上传自定义模板', 'error');
+            return loaded;
+        };
+
+        const translateTemplateError = (error) => {
+            if (!error) return '模板解析或渲染失败，请检查标签格式';
+            const message = String(error.message || error);
+            const properties = error.properties || {};
+            const nestedErrors = Array.isArray(properties.errors) ? properties.errors : [];
+            const explanation = String(properties.explanation || '');
+            const context = Array.isArray(properties.context) ? properties.context.join(', ') : '';
+            const tag = properties.tag || properties.id || '';
+            const hintTag = tag || context || '标签';
+            if (nestedErrors.length > 0) {
+                const details = nestedErrors
+                    .map((item) => String(item?.properties?.explanation || item?.message || '').trim())
+                    .filter(Boolean)
+                    .slice(0, 3);
+                if (details.length > 0) {
+                    return `模板包含多个语法错误：${details.join('；')}`;
+                }
+            }
+
+            const lower = `${message}\n${explanation}`.toLowerCase();
+            if (lower.includes('unclosed') || lower.includes('unopened') || lower.includes('closing tag') || lower.includes('loop_position_invalid')) {
+                return `模板标签结构异常：在【${hintTag}】附近可能存在区段起止标签不成对，或标签被换行拆开。请回到 Word 中确保标签写在同一行且成对出现。`;
+            }
+            if (lower.includes('duplicate_open_tag') || lower.includes('duplicate_close_tag')) {
+                return `模板标签重复：在【${hintTag}】附近检测到重复的区段标签，请检查是否误复制了 {{#...}} 或 {{/...}}。`;
+            }
+            if (lower.includes('scopeparser_compilation_failed') || lower.includes('malformed')) {
+                return `模板表达式损坏：在【${hintTag}】附近无法解析，请确认标签写法正确（例如 {{字段名}}、{{#区段}}...{{/区段}}）。`;
+            }
+            if (lower.includes('no_xml_tag_found_at_left') || lower.includes('no_xml_tag_found_at_right')) {
+                return `模板结构被破坏：在【${hintTag}】附近标签可能跨行断裂。请在 Word 中删除该标签并重新输入，避免回车切断。`;
+            }
+            if (lower.includes('cannot read') || lower.includes('cannot find file') || lower.includes('corrupt')) {
+                return '模板文件可能损坏或格式不兼容，请重新另存为 .docx 后再上传。';
+            }
+            if (lower.includes('not a constructor') || lower.includes('is not a function')) {
+                return '导出引擎初始化失败：模板库未正确加载，请刷新页面后重试。';
+            }
+            return `模板处理失败：${message}`;
+        };
+
+        const getDocxtemplaterCtor = () => {
+            if (typeof window.docxtemplater === 'function') return window.docxtemplater;
+            if (typeof window.Docxtemplater === 'function') return window.Docxtemplater;
+            if (window.docxtemplater && typeof window.docxtemplater.default === 'function') return window.docxtemplater.default;
+            if (window.Docxtemplater && typeof window.Docxtemplater.default === 'function') return window.Docxtemplater.default;
+            return null;
+        };
+
+        const readXmlAttribute = (tag, name) => {
+            const match = new RegExp(`\\b${name}="([^"]*)"`, 'i').exec(tag || '');
+            return match ? match[1] : '';
+        };
+
+        const detectPaperSize = (width, height) => {
+            const w = Number(width) || 0;
+            const h = Number(height) || 0;
+            const shortSide = Math.min(w, h);
+            const longSide = Math.max(w, h);
+            const near = (a, b) => Math.abs(a - b) <= 80;
+            if (near(shortSide, 11906) && near(longSide, 16838)) return 'A4';
+            if (near(shortSide, 16838) && near(longSide, 23811)) return 'A3';
+            return '自定义';
+        };
+
+        const syncPageSettingsFromTemplateZip = (zip) => {
+            const documentXml = zip.file('word/document.xml')?.asText();
+            const pgSzMatch = /<w:pgSz\b[^>]*\/?>/i.exec(documentXml || '');
+            if (!pgSzMatch) {
+                exportSettings.value.paperSize = '自定义';
+                exportSettings.value.orientation = '纵向';
+                return;
+            }
+
+            const tag = pgSzMatch[0];
+            const width = Number(readXmlAttribute(tag, 'w:w'));
+            const height = Number(readXmlAttribute(tag, 'w:h'));
+            const orient = readXmlAttribute(tag, 'w:orient');
+            exportSettings.value.paperSize = detectPaperSize(width, height);
+            exportSettings.value.orientation = orient === 'landscape' || width > height ? '横向' : '纵向';
+        };
+
+        const extractTagsFromDocx = (content) => {
+            try {
+                if (!window.PizZip) {
+                    showMessage('模板引擎加载失败：未找到 PizZip', 'error');
+                    return false;
+                }
+                // 初始化加载，纯获取内容，不再进行正则重组和替换破坏 XML 结构
+                const zip = new window.PizZip(content);
+                syncPageSettingsFromTemplateZip(zip);
+                const parsedTemplate = extractTemplateTags(zip);
+                const foundTags = buildTemplateTagTree(parsedTemplate.tags);
+
+                if (foundTags.length === 0) {
+                    showMessage('模板中未找到有效标记', 'error');
+                    return false;
+                }
+
+                templateDelimiters.value = parsedTemplate.delimiters;
+                templateTags.value = foundTags;
+                mappings.value = {};
+                autoMapFields();
+                refreshIcons();
+                return true;
+            } catch (error) {
+                console.error(error);
+                showMessage(translateTemplateError(error), 'error');
+                return false;
+            }
+        };
+
+        const buildRenderDataByMappings = () => {
+            const source = sourceData.value;
+            const renderData = {};
+            const mapValueFromSource = (mapData, row) => {
+                if (!mapData) return '';
+                if (mapData.type === 'manual') return mapData.value ?? '';
+                if (row && typeof row === 'object') return row[mapData.id] ?? '';
+                if (Object.prototype.hasOwnProperty.call(source, mapData.id)) return source[mapData.id] ?? '';
+                const field = availableFields.value.find((item) => item.id === mapData.id);
+                if (field && Object.prototype.hasOwnProperty.call(field, 'value')) return field.value;
+                return '';
+            };
+
+            templateTags.value.forEach((tag) => {
+                const mapData = mappings.value[tag.name];
+
+                if (!isSectionTag(tag) && tag.type === 'text') {
+                    if (!mapData) return;
+                    const mappedValue = mapValueFromSource(mapData);
+                    renderData[tag.name] = mappedValue ?? '';
+                    return;
+                }
+
+                if (getTagUiType(tag) === 'condition') {
+                    renderData[tag.name] = Boolean(mapValueFromSource(mapData));
+                    ensureArray(tag.children).forEach((childTag) => {
+                        const childMap = mappings.value[`${tag.name}.${childTag.name}`];
+                        if (!childMap) return;
+                        renderData[childTag.name] = mapValueFromSource(childMap);
+                    });
+                    return;
+                }
+
+                if (getTagUiType(tag) === 'loop') {
+                    if (!mapData || mapData.type !== 'loop') {
+                        renderData[tag.name] = [];
+                        return;
+                    }
+                    const loopSourceArray = Array.isArray(source[mapData.id]) ? source[mapData.id] : [];
+                    renderData[tag.name] = loopSourceArray.map((row) => {
+                        const childObject = {};
+                        ensureArray(tag.children).forEach((childTag) => {
+                            const childMap = mappings.value[`${tag.name}.${childTag.name}`];
+                            if (!childMap) return;
+                            childObject[childTag.name] = mapValueFromSource(childMap, row);
+                        });
+                        return childObject;
+                    });
+                }
+            });
+
+            return renderData;
+        };
+
+        const base64DataURLToArrayBuffer = (dataURL) => {
+            const base64Regex = /^data:image\/(png|jpg|jpeg|webp|gif|bmp|svg|svg\+xml);base64,/i;
+            if (!base64Regex.test(dataURL || '')) return null;
+            const stringBase64 = String(dataURL).replace(base64Regex, '');
+            const binaryString = window.atob(stringBase64);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i += 1) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            return bytes.buffer;
+        };
+        const base64StringToArrayBuffer = (base64Text) => {
+            const value = normalizeText(base64Text);
+            if (!value || value.length < 100) return null;
+            try {
+                const binaryString = window.atob(value);
+                const len = binaryString.length;
+                const bytes = new Uint8Array(len);
+                for (let i = 0; i < len; i += 1) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                return bytes.buffer;
+            } catch {
+                return null;
+            }
+        };
+
+        const transparentPixelArrayBuffer = () => base64DataURLToArrayBuffer(TRANSPARENT_PNG_DATA_URL);
+
+        const normalizeImagePathToUrl = (rawPath) => {
+            const value = String(rawPath || '').trim();
+            if (!value) return '';
+            if (/^(https?:|data:|blob:|file:)/i.test(value)) return encodeURI(value);
+            if (/^[a-zA-Z]:[\\/]/.test(value)) {
+                return encodeURI(`file:///${value.replace(/\\/g, '/').replace(/^([a-zA-Z]):/, '$1:')}`);
+            }
+            if (/^\\\\/.test(value)) {
+                return encodeURI(`file:${value.replace(/\\/g, '/')}`);
+            }
+            return encodeURI(value);
+        };
+
+        const fetchImageArrayBuffer = async (rawPath) => {
+            const url = normalizeImagePathToUrl(rawPath);
+            if (!url) return null;
+            try {
+                const response = await fetch(url);
+                if (!response.ok) return null;
+                return await response.arrayBuffer();
+            } catch {
+                return null;
+            }
+        };
+
+        const calculateImageSize = (width, height, maxWidth = 260, maxHeight = 150) => {
+            const safeWidth = Number(width) || maxWidth;
+            const safeHeight = Number(height) || maxHeight;
+            const ratio = Math.min(maxWidth / safeWidth, maxHeight / safeHeight, 1);
+            return [Math.max(20, Math.round(safeWidth * ratio)), Math.max(20, Math.round(safeHeight * ratio))];
+        };
+
+        const resolveImageSizeByDataUrl = (dataUrl) => new Promise((resolve, reject) => {
+            const image = new Image();
+            image.onload = () => resolve(calculateImageSize(image.naturalWidth || image.width, image.naturalHeight || image.height));
+            image.onerror = () => reject(new Error('图片尺寸识别失败，请检查图片格式'));
+            image.src = dataUrl;
+        });
+
+        const getImageModuleCtor = () => {
+            if (typeof window.ImageModule === 'function') return window.ImageModule;
+            if (window.ImageModule && typeof window.ImageModule.default === 'function') return window.ImageModule.default;
+            return null;
+        };
+
+        const sanitizeFileName = (name) => {
+            const safeName = normalizeText(name)
+                .replace(/[\\/:*?"<>|]/g, '_')
+                .replace(/\s+/g, ' ')
+                .replace(/[. ]+$/g, '')
+                .slice(0, 120);
+            return safeName || '审查报告';
+        };
+
+        const getExportDocxName = () => `${sanitizeFileName(exportSettings.value.fileName)}.docx`;
+
+        const requestDesktopClose = () => {
+            const closeWindow = window?.pkpmDesktopBridge?.closeWindow;
+            if (typeof closeWindow === 'function') {
+                closeWindow().catch((error) => console.warn('桌面端关闭窗口失败', error));
+            }
+        };
+
+        const saveOpenAndCloseInDesktop = async (blob, fileName) => {
+            const saveAndOpenDocx = window?.pkpmDesktopBridge?.saveAndOpenDocx;
+            if (typeof saveAndOpenDocx !== 'function') {
+                return { handled: false };
+            }
+
+            const arrayBuffer = await blob.arrayBuffer();
+            try {
+                const result = await saveAndOpenDocx({ fileName, buffer: arrayBuffer, mimeType: MIME_DOCX });
+                if (result?.canceled) {
+                    return { handled: true, canceled: true };
+                }
+                setTimeout(requestDesktopClose, 700);
+                return { handled: true, canceled: false, outputPath: result?.outputPath };
+            } catch (error) {
+                console.warn('桌面端自动保存并打开失败', error);
+                return {
+                    handled: true,
+                    error: error?.message || 'Word 文档保存失败，请检查文件是否正在被占用。'
+                };
+            }
+        };
+
+        // =========================================================================
+        // 基于 Docxtemplater 标准工作流渲染 Word 报告 (不再对 XML 进行底层替换)
+        // =========================================================================
+        const createTemplateWordBlob = async (templateBinary = rawTemplateContent.value) => {
+            if (!templateBinary) throw new Error('请先上传或加载模板后再导出。');
+            const DocxtemplaterCtor = getDocxtemplaterCtor();
+            if (!window.PizZip || !DocxtemplaterCtor) {
+                throw new Error('导出引擎加载失败，请检查网络后刷新页面重试');
+            }
+
+            // 获取拼装好的全量映射数据 (形如 { year: "2022", month: "05", loop: [...] })
+            const renderData = buildRenderDataByMappings();
+            
+            // 按照标准流程，创建 PizZip 实例，保留模板自身页面大小与方向。
+            const zip = new window.PizZip(templateBinary);
+
+            const ImageModuleCtor = getImageModuleCtor();
+            const hasImagePlaceholder = templateTags.value.some((tag) => {
+                if (tag.type === 'text' && tag.isImage) return true;
+                if (isSectionTag(tag)) return ensureArray(tag.children).some((child) => child.isImage);
+                return false;
+            });
+            if (hasImagePlaceholder && !ImageModuleCtor) {
+                throw new Error('图片模块未加载成功，请刷新页面后重试。');
+            }
+            
+            // 实例化图片插件（如果模板中含图片标记的话）
+            const imageModule = ImageModuleCtor
+                ? new ImageModuleCtor({
+                    centered: false,
+                    fileType: 'docx',
+                    async getImage(tagValue, tagName) {
+                        const value = String(tagValue || '').trim();
+                        if (!value) return transparentPixelArrayBuffer();
+
+                        const arr = base64DataURLToArrayBuffer(value);
+                        if (arr) return arr;
+
+                        const byPath = await fetchImageArrayBuffer(value);
+                        if (byPath) return byPath;
+
+                        console.warn(`图片标签 ${tagName} 读取失败，已自动跳过：${value}`);
+                        return transparentPixelArrayBuffer();
+                    },
+                    getSize(img, tagValue) {
+                        const value = String(tagValue || '').trim();
+                        if (!value) return [1, 1];
+                        if (/^data:image\//i.test(value)) {
+                            return resolveImageSizeByDataUrl(value);
+                        }
+                        if (/^[a-zA-Z]:[\\/]/.test(value) || /^[\\/]/.test(value) || /^https?:/i.test(value) || /^file:/i.test(value)) {
+                            return [180, 120];
+                        }
+                        return [180, 120];
+                    }
+                })
+                : null;
+
+            // 完全遵照官方标准生成 doc 实例 (这里与 const doc = new docxtemplater().loadZip(zip) 等价)
+            const doc = new DocxtemplaterCtor(zip, {
+                modules: imageModule ? [imageModule] : [],
+                paragraphLoop: true,
+                linebreaks: true,
+                delimiters: templateDelimiters.value,
+                nullGetter: () => '' // 避免未定义的值展示为 'undefined' 字符串
+            });
+
+            try {
+                // 如果引入了异步的图片处理模块，官方要求必须使用 resolveData
+                if (typeof doc.resolveData === 'function') {
+                    await doc.resolveData(renderData);
+                } else if (typeof doc.setData === 'function') {
+                    // 常规调用，设置模板变量的值
+                    doc.setData(renderData);
+                }
+                
+                // 用模板变量的值替换所有模板变量 (原生渲染)
+                doc.render();
+            } catch (error) {
+                // 异常捕获机制与您提供的示例一致
+                const e = {
+                    message: error.message,
+                    name: error.name,
+                    stack: error.stack,
+                    properties: error.properties
+                };
+                console.log(JSON.stringify({ error: e }));
+                
+                const explain = error?.properties?.explanation || error?.message || '模板渲染失败';
+                throw new Error(`模板渲染失败：${explain}`);
+            }
+
+            // 生成一个代表docxtemplater对象的zip文件Blob
+            return doc.getZip().generate({
+                type: 'blob',
+                mimeType: MIME_DOCX
+            });
+        };
+
+        // --- 核心导出逻辑 ---
+        const generateExport = async () => {
+            if (filters.value.listTypes.length === 0) {
+                showMessage('请至少选择一个清单目录', 'error');
+                return;
+            }
+            if (!templateLoaded.value || !rawTemplateContent.value) {
+                showMessage('请先上传并成功解析 .docx 模板后再导出', 'error');
+                return;
+            }
+
+            isExporting.value = true;
+            try {
+                const outputBlob = await createTemplateWordBlob();
+                const fileName = getExportDocxName();
+                const desktopResult = await saveOpenAndCloseInDesktop(outputBlob, fileName);
+                if (desktopResult.canceled) {
+                    return;
+                }
+                if (desktopResult.error) {
+                    showMessage(desktopResult.error, 'error');
+                    return;
+                }
+                if (!desktopResult.handled) {
+                    saveAs(outputBlob, fileName);
+                    showMessage('Word 文档导出成功！', 'success');
+                } else {
+                    showMessage('Word 文档已导出，正在打开...', 'success');
+                }
+            } catch (error) {
+                console.error('Export Error:', error);
+                showMessage(translateTemplateError(error), 'error');
+            } finally {
+                isExporting.value = false;
+            }
+        };
+
+        onMounted(() => {
+            refreshIcons();
+            ensureDefaultFilterSelection();
+            autoMapFields();
+
+            const desktopBridge = window?.pkpmDesktopBridge;
+            const ensureTemplateLoaded = async (startupResult) => {
+                if (!startupResult?.templateLoaded && !templateLoaded.value) {
+                    await loadBuiltinTemplate();
+                }
+                await loadJsonPathsFromUrl(true);
+            };
+            if (desktopBridge?.getStartupPayload) {
+                desktopBridge.getStartupPayload()
+                    .then((payload) => ensureTemplateLoaded(loadStartupPayload(payload)))
+                    .catch((error) => {
+                        console.warn('Failed to read startup payload', error);
+                        void ensureTemplateLoaded();
+                    });
+            } else {
+                void ensureTemplateLoaded();
+            }
+            if (desktopBridge?.onLoadCliArgs) {
+                desktopBridge.onLoadCliArgs(loadStartupPayload);
+            }
+        });
+
+        return {
+            currentStep, isExporting, message,
+            basicInfo,
+            jsonFiles, parsedJsonData, extractedDrawings,
+            filters, availableTypes, activeSeveritiesInJson, displaySeverities, issueStats, toFilterLabel,
+            isChecktypeSupported, isSeveritySupported,
+            exportSettings,
+            templateLoaded, templateName, templateMode, isLoadingDefaultTemplate, showTemplateMapping,
+            availableFields, displayedFields, templateTags, mappings,
+            nextStep, cancel,
+            handleJsonSelect, handleJsonDrop, removeJsonFile,
+            toggleFilter,
+            handleTemplateSelect, useDefaultTemplate,
+            onDragStart, onDragOver, onDragLeave, onDrop, removeMapping, onManualInput,
+            getTagUiType, getTemplateTagText, getTagTypeLabel, getTypeBadgeLabel, getTypeBadgeClass,
+            canSwitchTagType, setTagUiType, getChildDropType, isChildInputDisabled, getChildPlaceholder,
+            generateExport, onTemplateConfigClick
+        };
+    }
+});
+
+app.mount('#app');
+</script>
+</body>
+</html>

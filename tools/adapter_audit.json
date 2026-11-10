@@ -1,0 +1,154 @@
+[
+  {
+    "ok": false,
+    "software": "PKPM",
+    "live_verified": false,
+    "injected": [],
+    "message": "没有找到运行中的 pkpmmcp 进程（查找 PKPMMain.exe, PKPM.exe）。请先打开已授权的软件。",
+    "entry": "adapters.port_discovery.discover_mcp_url",
+    "label": "PKPM",
+    "entry_fn": "connect_structural_pm"
+  },
+  {
+    "ok": false,
+    "software": "PKPM-CAE",
+    "live_verified": false,
+    "injected": [],
+    "message": "没有找到运行中的 cae-mcp 进程（查找 PKPMCAE.exe, PyPCAE.exe, CAEMain.exe）。请先打开已授权的软件。",
+    "entry": "adapters.port_discovery.discover_mcp_url",
+    "label": "PKPM-CAE",
+    "entry_fn": "connect_structural_cae"
+  },
+  {
+    "ok": false,
+    "software": "SAUSG",
+    "live_verified": false,
+    "injected": [],
+    "message": "没有找到运行中的 ssgmcp 进程（查找 SAUSAGE.exe, SAUSGZeta.exe, SAUSGPI.exe, SAUSGJG.exe, OpenSAUSG.exe）。请先打开已授权的软件。",
+    "entry": "adapters.port_discovery.discover_mcp_url",
+    "label": "SAUSG",
+    "entry_fn": "connect_sausg"
+  },
+  {
+    "ok": false,
+    "software": "GBP",
+    "live_verified": false,
+    "injected": [],
+    "message": "连接 http://127.0.0.1:3333/GBPBECA3/galpserver/mcp 失败：ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)",
+    "entry": "adapters.mcp_upstream.connect_streamable",
+    "label": "GBP",
+    "entry_fn": "connect_gbp"
+  },
+  {
+    "ok": false,
+    "software": "PlantS",
+    "live_verified": false,
+    "injected": [],
+    "message": "没有找到运行中的 plantsmcp 进程（查找 BIMBase.exe, PlantS.exe, P3D.exe）。请先打开已授权的软件。",
+    "entry": "adapters.port_discovery.discover_mcp_url",
+    "label": "PlantS",
+    "entry_fn": "connect_plants"
+  },
+  {
+    "ok": false,
+    "software": "BIMBase",
+    "live_verified": false,
+    "injected": [],
+    "message": "没有找到运行中的 BIMBaseAI2PY_MCPServer 进程（查找 BIMBase.exe, PKPMBIM.exe）。请先打开已授权的软件。",
+    "entry": "adapters.port_discovery.discover_mcp_url",
+    "label": "BIMBase",
+    "entry_fn": "connect_bimbase"
+  },
+  {
+    "ok": false,
+    "software": "SAP2000",
+    "live_verified": false,
+    "injected": [],
+    "message": "OSError: [WinError -2147221005] 无效的类字符串",
+    "entry": "adapters.hosts._connect_csi",
+    "label": "SAP2000",
+    "entry_fn": "connect_sap2000"
+  },
+  {
+    "ok": false,
+    "software": "ETABS",
+    "live_verified": false,
+    "injected": [],
+    "message": "OSError: [WinError -2147221005] 无效的类字符串",
+    "entry": "adapters.hosts._connect_csi",
+    "label": "ETABS",
+    "entry_fn": "connect_etabs"
+  },
+  {
+    "ok": false,
+    "software": "STAAD",
+    "live_verified": false,
+    "injected": [],
+    "message": "未找到 openstaadpy。本机 STAAD.Pro 探测结果：未找到任何 STAAD.Pro 安装。请安装 STAAD.Pro 2025+（自带 OpenSTAADPy/Setup/openstaadpy-*.tar.gz），或手动 pip install git+https://github.com/BentleySystems/openstaadpy.git。",
+    "entry": "adapters.staad_discovery.ensure_openstaadpy_installed",
+    "label": "STAAD",
+    "entry_fn": "connect_staad"
+  },
+  {
+    "ok": false,
+    "software": "MIDAS GEN NX",
+    "live_verified": false,
+    "injected": [],
+    "message": "缺少 MIDAS_BASE_URL 或 MIDAS_MAPI_KEY。GEN NX 2026 起在 API Settings 里提供本机地址和密钥。密钥用 Windows DPAPI 存在配置中，本工具不读取、不打印该密钥。",
+    "entry": "adapters.midas.connect_midas",
+    "label": "MIDAS",
+    "entry_fn": "connect_midas"
+  },
+  {
+    "ok": false,
+    "software": "Abaqus",
+    "live_verified": false,
+    "injected": [],
+    "message": "没有连上 127.0.0.1:48152（[WinError 10061] 由于目标计算机积极拒绝，无法连接。）。请先把 esab 自带的 adapters/abaqus_plugin.py 复制到 AbaqusPlugins 目录，然后启动 Abaqus/CAE。本客户端只附着该端口，不启动 Abaqus，也不检查许可证。",
+    "entry": "adapters.abaqus_client.connect_abaqus",
+    "label": "Abaqus",
+    "entry_fn": "connect_abaqus"
+  },
+  {
+    "ok": false,
+    "software": "Tekla",
+    "live_verified": false,
+    "injected": [],
+    "message": "DetectionError: 未找到 Tekla。请先启动 Tekla 并打开模型，或使用 --path 指定 bin 目录。",
+    "entry": "adapters.tekla_host.connect_tekla",
+    "label": "Tekla",
+    "entry_fn": "connect_tekla"
+  },
+  {
+    "ok": false,
+    "software": "Rhino",
+    "live_verified": false,
+    "injected": [],
+    "message": "没有运行中的 Rhino，且注册表未找到已安装的 Rhino。请先打开已授权的 Rhino。",
+    "entry": "adapters.rhino_host.get_rhino",
+    "label": "Rhino",
+    "entry_fn": "connect_rhino"
+  },
+  {
+    "ok": true,
+    "software": "CAD",
+    "live_verified": true,
+    "injected": [
+      "acad"
+    ],
+    "message": "已连接 浩辰 CAD 27.00：Drawing3.dwg（GstarCAD.Application）",
+    "entry": "adapters.hosts.connect_cad",
+    "label": "CAD",
+    "entry_fn": "connect_cad"
+  },
+  {
+    "ok": false,
+    "software": "SketchUp",
+    "live_verified": false,
+    "injected": [],
+    "message": "无法连接 SketchUp 桥接插件 127.0.0.1:49999（[WinError 10061] 由于目标计算机积极拒绝，无法连接。）。请确认：1) SketchUp 已打开；2) sketchup_bridge.rb 已放到 Plugins 目录并重启 SketchUp。",
+    "entry": "adapters.sketchup_client.connect_sketchup",
+    "label": "SketchUp",
+    "entry_fn": "connect_sketchup"
+  }
+]

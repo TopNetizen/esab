@@ -1,0 +1,11 @@
+{
+  "injected_into_python_executor": [
+    "connect_to_server(server_name, work_dir=None, cmd_args=None)",
+    "disconnect_server(server_name)",
+    "is_server_connected(server_name)",
+    "function_search(action, func_type='', func_names=None)",
+    "use_skill(name, file=None, run=None, run_args='')",
+    "connect_to_plants(project_path=None)"
+  ],
+  "mcp_tools": ["python_executor", "use_skill", "cancel_execution", "list_software_adapters"]
+}

@@ -1,0 +1,68 @@
+
+
+# Paper White Courseware · Academic STYLE DESIGN SYSTEM
+
+## PART A — Category Baseline (General Minimum)
+
+Create rigorous, formally typeset academic presentations at the standard of top-tier research talks and thesis defenses (NeurIPS/CHI/SIGGRAPH main-stage quality), with clarity of argument taking precedence over decoration. The deck must read as a reproducible scientific claim, not as marketing collateral. Use academic language throughout: standard terminology for research questions, hypotheses, evidence, significance, contributions, and limitations, without marketing or business phrasing. Shift the visual emphasis by discipline: theoretical work should make equations and proof steps the dominant large-scale content; computer science and engineering should be structured around system diagrams, code, execution traces, and performance curves; experimental research should tightly organize equations, charts, and images around the same conclusion; humanities and social sciences should layer archival records, maps, manuscripts, and other textual evidence with narrative depth while preserving academic rigor.
+
+Content and layout:
+1. Use a fixed argument structure: research question → gap in related work → data and methods → main results → ablation/analysis → limitations → future work. A short deck may compress this sequence, but must not reorder it.
+2. Make every slide evidence-first: results tables must include baseline comparison columns; use comparison charts and architecture/process diagrams; present the core contribution as a formally typeset equation.
+3. Maintain medium information density: one claim per slide, with evidence organized around that claim. Slides should be composed, not filled—white space is a legitimate way to separate stages of the argument.
+
+Visual style:
+1. Aesthetic: restrained, precise, and scholarly. Do not use promotional copy, decorative photography, or clip-art icons.
+2. Typography: use clear sans serif typefaces (latin "Segoe UI", east_asia "微软雅黑") for body text and labels; titles may use serif type when the source style does. Equations must be formally typeset with add_formula, with standard equation numbering and italic variables.
+3. Color: use a two-color system for each deck—one primary structural color and one accent color, with gray carrying hierarchy; use a white or near-white background; use only one consistent warning color for negative results or ablation signals.
+4. Graphics: draw diagrams with thin, precise vector lines; use minimal horizontal rules in tables; give charts axis labels, units, and sample definitions; do not use 3D effects, shadows, or gradients as decoration.
+
+Structure and discipline (derived from work we consider exemplary):
+1. Every content-slide title must state a claim—a finding, not a section label: “Lapses in attention can be predicted 10 seconds in advance,” not “Experimental results.” Support that claim with evidence on the same slide.
+2. Align claims with evidence: every quantitative conclusion on a slide must be supported there by a chart, table, or cited result. Never leave a number orphaned.
+3. The primary results table must include baseline comparison columns and mark the best value; show relative improvement alongside absolute values.
+4. Method slides must provide reproducibility details: dataset size, annotation protocol, inter-annotator agreement, and key hyperparameters. Show only the core idea as an equation; place derivations in appendix slides.
+5. Every figure must be self-contained: include axis labels with units, a legend or direct labels, and a caption area stating sample size and confidence convention. A figure must not rely on the legend alone.
+6. Ablations and limitations are mandatory, not optional: ablations isolate the contribution of each component; limitations candidly state scope, failure modes, and ethical/anonymization status.
+7. Every number must include its unit, time range, dataset, and statistical convention (mean ± variance, sample size). Express uncertainty with a measurable quantity or confidence interval, not vague language.
+8. Open with a problem statement and a one-sentence contribution; close with numbered conclusions—claims, not a summary—and an explicit list of open questions.
+9. Place citations as compact footnote lines at the bottom of slides where they are used; unless the genre requires it, do not create a dense full-slide wall of references.
+
+Default baseline (PART B may override): organize each slide around one evidence unit (figure/table/equation); give charts complete axis labels, units, and sample definitions; make charts honest—do not truncate the y-axis to exaggerate differences, and distinguish correlation from causation explicitly in the copy; ensure projection readability, with body text on the 960×540 pt canvas at ≥14 pt and chart labels at ≥10 pt.
+
+**Title read-through test**: reading only the slide titles should tell the complete story; if the sequence does not flow, the structure is not working.
+
+Density anchor: the specific minimum for this style—the number of evidence modules and charts per slide, and annotation conventions—is defined by the 【Density Baseline】 below. This baseline does not impose a single universal number.
+
+### Global Prohibitions (Mandatory · Prevent Default AI Patterns)
+
+1. **No cards by default**: unless the user explicitly requests them, do not use rounded rectangles or rectangular cards to create hierarchy or alignment. Containers with a genuine information function—status indicators, hypothesis boxes, quotation frames—do not count as cards. Lines, white space, font size, and weight contrast are better tools.
+2. **No equal-split compositions**: unless no other layout is viable, do not default to three equal columns, four equal columns, or a two-by-two matrix. An equal split must be justified by the content structure—three scenarios naturally support three columns; frameworks explicitly named in the content are exempt.
+3. **No unjustified AI-default color schemes**: institution-specific palettes stated in the content are exempt. Prohibited defaults are generic, moderate, and unsupported choices such as blue-purple gradients, cyan-purple neon, rainbow flares, glass cards, and glowing borders.
+4. **No elements inconsistent with the overall style**: do not introduce forms outside the visual language, such as rounded icons or rounded rectangles in a sharp-edged style.
+5. **Keep chart backgrounds transparent**: use transparency or the slide background color, except for reversed charts on dark backgrounds.
+6. **No empty regions**: do not leave an entire planned region of the content area blank. Every allocated region must contain real content; an unfilled region is the most serious form of roughness.
+
+## PART B — Signature System (Distinctive Template Signature; This Section Overrides PART A in Case of Conflict)
+
+One-sentence style signature: warm courseware with a paper-editorial sensibility, grounded in creamy paper white; forest green establishes structure, coral orange provides small accents, and moderately high long-form text density coexists with generous breathing room.
+
+【Color Palette】Background #FDFAF5: fill the full slide while retaining the warmth of paper; primary text #56687A: use for all long-form text instead of pure black; title #44712E: use for slide titles, section labels, bold emphasis, and dark result bars; primary accent #F5987E: use only for short divider rules, chapter numbers, step numbers, and key figures; supporting green #D7EBCE: use only as fills for list items, table rows, or title panels; supporting pink #F9DED8: use only for chapter circles, case-study top bands, or alternating rows. Fix the chart series to #44712E, #F5987E, and their light variants #D7EBCE and #F9DED8. Do not create a separate red/green convention for positive and negative values; use #F5987E for both, with ↑/↓ and text indicating direction. Use no more than two hue families per slide (green + coral); never flood an entire slide with the accent color.
+
+【Layout Skeleton】Canvas: 960×540 pt, 16:9, with margins of approximately 75 pt at the sides and 33 pt at top and bottom. Most content slides place a 34–40 pt claim title at the upper left, followed by a coral rule approximately 75×6 pt; the coral chapter number sits at the upper right, double angle brackets at the lower left, and “Short Document Name｜Page Number” at the lower right. Content typically uses two unequal columns of approximately 45:55, read left to right and then downward; a photograph runs as a horizontal band across the upper 35%–40%. Cover/chapter slides use only a giant pale-pink circle shifted left + a person or botanical illustration + a wide pale-green title band at the lower left.
+
+【Typography】Body, titles, numbers, and navigation all use the sans family: latin "Segoe UI", east_asia "微软雅黑", titles and figures bold. Body text 16–18 pt (17 pt = 1x), slide titles 34–40 pt ≈ 2.2x, information statements 22–25 pt ≈ 1.3–1.5x, large figures 56–72 pt ≈ 3.5–4.2x, chapter numbers approximately 150 pt ≈ 9x, and footers 12 pt ≈ 0.7x; keep the all-sans weight hierarchy. Set English titles in sentence case, never all caps; bold only the conclusion within a sentence, and italicize quotations.
+
+【Chart Language】Elements used in the source: bar charts with few bars, single-diagonal relationship diagrams, funnels, circular-arrow diagrams, proportional icon arrays, comparison matrices/tables, and KPI result bars. ⭐Pair each chart with a one-sentence rule on the same slide: place the chart within a pale-green or pale-pink field, and label the conclusion directly beside the relevant line, bar, or region rather than creating a separate large legend. ⭐All quantified case-study outcomes belong in a dark-green result bar: white explanatory text + a large coral figure, with body content avoiding emphasis at the same level. ⭐Use proportional icon arrays only occasionally, and only when the sample is small enough for a proportion to be read directly from 10 units.
+
+【Signature Components】Coral short rule: use it once beneath the title, at a width approximately 2 times the title’s cap height; pale list panels: use only for parallel steps, comparison rows, or tool items, 3–6 per slide—this is a narrow exception to PART A’s prohibition on default cards; flat person/botanical illustrations (use the user's illustrations; without them, compose simple flat plant forms from shapes such as teardrops and ellipses, or use line icons—see graphics.md): use them to turn abstract claims into situations, no more than one group per slide, positioned against the slide edge or in open space without covering body text; dark-green result bar: use only for “result + key change,” no more than one per slide. Photography is a hard requirement: include at least one real contextual photograph of a person in the deck, used only as a full-width top band or standalone rectangle on an introduction slide or at the opening of a case study. Do not replace it with an abstract gradient or an illustration-only treatment.
+
+【Prohibited】Do not use a photo as a text background or add a mask with overlaid text; do not generalize pale-green/pale-pink panels into a card grid with no information function; do not scatter colored icons—icons must sit inside white circular wells or be bound to list items; do not allow the native colors of embedded interfaces/screenshots to spill into the global palette; do not use coral orange for long passages of body text or as a full-slide background.
+
+【Slide Types and Layouts】Editorial argument slide｜one judgment + explanation + diagram｜title 15% / unequal two-column body 55% / marginal illustration or figure 30%｜3–5 blocks｜short rule, footer, marginal illustration｜not suitable for a multi-metric dashboard.
+Data-claim slide｜one large figure or one primary chart supports the conclusion｜title 15% / primary evidence 45% / explanation 30%｜2–4 blocks｜large figure, pale chart field｜not suitable for several small charts side by side.
+List/tool slide｜3–6 peer-level steps, benefits, or methods｜title 15% / vertical list or matrix 70%｜3–6 blocks｜pale list panels, icons in circular wells｜not suitable for a long derivation.
+Photo-led introduction slide｜human context + one-sentence lead-in｜photo 40%–48% / title and body 40%｜2–3 blocks｜full-width photo band, short rule｜not suitable for data-dense content.
+Case-evidence slide｜problem—method—result chain｜pale-pink top band or photo 20% / two-column body 50% / result bar 30%｜3–4 blocks｜device image or photo, dark-green result bar｜not suitable for a story without verifiable outcomes.
+
+【Density Baseline】Use 2–4 evidence/explanation modules per slide; list slides carry 3–6 peer items; most slides contain 0–1 primary chart and never form a multi-chart dashboard. Label values bar by bar only in sparse bar charts with approximately 3 bars; label only the key regions and endpoints in relationship diagrams. Keep each explanation block to roughly 40–90 characters’ worth of content, adjusted to an equivalent length in the working language. If a case study exceeds 4 blocks, split it into separate “Method” and “Results” slides. This overrides PART A’s prohibition on empty regions: continuous paper-white space is allowed beneath the title, around illustrations, and above the footer, but never reserve an empty container.

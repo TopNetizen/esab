@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "esab": {
+      "command": "esab",
+      "args": ["stdio", "--config", "C:/path/to/struct.bridge.json"]
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "servers": [
+    {
+      "id": "pkpmmcp",
+      "enabled": true,
+      "simulated": false,
+      "transport": "streamable_http",
+      "url": "http://127.0.0.1:9/mcp",
+      "notes": "把 url 换成诊断脚本用官方 pid_to_mcp_port 打印出的地址。不要猜测端口。本文件里的 9 只是占位，连不上时桥接器不会编造建模工具。"
+    }
+  ]
+}
