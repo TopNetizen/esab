@@ -8,7 +8,7 @@
 [![MCP](https://img.shields.io/badge/protocol-MCP-6E56CF.svg)](https://modelcontextprotocol.io)
 
 ESAB 是一个 [MCP](https://modelcontextprotocol.io)（Model Context Protocol）服务，把 Cursor、WorkBuddy、
-Claude Desktop 或其他 MCP 客户端，连到本机已安装、已授权的工程软件上：
+Claude Desktop，或任何支持 MCP、能安装插件/连接器的智能体，连到本机已安装、已授权的工程软件上：
 
 **SAP2000 · ETABS · STAAD.Pro · MIDAS GEN NX · Abaqus · Tekla Structures · Rhino ·
 AutoCAD / 浩辰 / 中望 / BricsCAD · SketchUp · PKPM · PKPM-CAE · SAUSG · PlantS · BIMBase · GBP**
@@ -16,7 +16,7 @@ AutoCAD / 浩辰 / 中望 / BricsCAD · SketchUp · PKPM · PKPM-CAE · SAUSG ·
 共 15 款软件、22 套 API 技能。智能体发出调用，软件用自己的求解器计算，设计责任仍在工程师。
 
 ```
-MCP 客户端（Cursor / WorkBuddy / Claude Desktop / 任意 MCP 客户端）
+MCP 客户端（Cursor / WorkBuddy / Claude Desktop / 任意支持 MCP 的智能体）
     │   MCP：stdio，或带令牌的 Streamable HTTP
     ▼
 ESAB  ──  python_executor（常驻会话）· use_skill（API 技能）· adapters（15 个连接入口）
@@ -26,7 +26,8 @@ SAP2000 · ETABS · STAAD.Pro · MIDAS · Abaqus · Tekla · Rhino
 AutoCAD / 浩辰 / 中望 / BricsCAD · SketchUp · PKPM · PKPM-CAE · SAUSG · PlantS · BIMBase · GBP
 ```
 
-ESAB 不建模、不求解、不处理许可。它把调用转发给各软件自己的自动化接口，并核对返回结果。
+ESAB 不内置建模、求解能力，也不处理许可。建模、求解、出报告由智能体驱动对应的软件完成：ESAB 把
+调用转发给各软件自己的自动化接口，并核对返回结果。
 
 ## 支持的软件
 

@@ -8,8 +8,8 @@
 **工程结构通用智能体插件** · [简体中文](README.zh-CN.md)
 
 ESAB is a [Model Context Protocol](https://modelcontextprotocol.io) server. It connects Cursor, WorkBuddy,
-Claude Desktop, or another MCP client to engineering software that is already installed and licensed on
-the machine:
+Claude Desktop, or any agent that supports MCP or can load MCP plugins/connectors, to engineering
+software that is already installed and licensed on the machine:
 
 **SAP2000 · ETABS · STAAD.Pro · MIDAS GEN NX · Abaqus · Tekla Structures · Rhino · AutoCAD / GstarCAD /
 ZWCAD / BricsCAD · SketchUp · PKPM · PKPM-CAE · SAUSG · PlantS · BIMBase · GBP**
@@ -39,7 +39,8 @@ solver, and design responsibility stays with the engineer.
      └────────────┘ └──────────┘ └──────────────────────────┘
 ```
 
-ESAB does not model, solve, or handle licensing. It forwards calls to each program's own automation
+ESAB ships no modelling or solving of its own and does not handle licensing. The agent models and
+solves by driving the installed software: ESAB forwards the calls to each program's own automation
 interface and checks what comes back.
 
 ## Supported software
