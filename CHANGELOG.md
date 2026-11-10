@@ -39,6 +39,14 @@ First public release. Renamed from the internal `struct-agent-bridge` working na
 - **`AutoCAD-Link/SKILL.md` mismatched pyautocad 0.2.0.** It documented `acad.connection`,
   `acad.constants` and custom exception classes that do not exist in the declared dependency. Rewritten
   against the real interface, with the four genuine error classes documented.
+- **Worker transport broke on non-UTF-8 Windows locales.** The persistent Python worker spoke
+  line-delimited JSON over pipes opened with the locale default encoding, so on an English Windows
+  install (cp1252) any Chinese diagnostic or skill body raised `UnicodeDecodeError` in the parent and
+  surfaced as "worker exited before returning a result". Both sides now pin UTF-8
+  (`PYTHONIOENCODING`, `encoding="utf-8"`, `reconfigure()` in the worker). Reported by CI on
+  `windows-latest`; reproducible on POSIX with `LANG=C`.
+- **`_connect_csi` dropped its diagnostics when `comtypes` was missing**, returning a message without
+  the helper ProgID and object name the other branches include.
 
 ### Changed
 

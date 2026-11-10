@@ -22,12 +22,18 @@ class SessionWorker:
         env = os.environ.copy()
         src = Path(__file__).resolve().parents[2]
         env["PYTHONPATH"] = str(src) + os.pathsep + env.get("PYTHONPATH", "")
+        # The protocol is line-delimited JSON with non-ASCII content. Never trust the
+        # locale default: on Windows a cp1252 console cannot encode Chinese at all, and
+        # the failure looks like "worker exited before returning a result".
+        env["PYTHONIOENCODING"] = "utf-8"
         return subprocess.Popen(
             [sys.executable, str(_WORKER)],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             env=env,
         )
 

@@ -244,6 +244,7 @@ def _connect_csi(software: str, helper_progid: str, helper_module: str, object_n
             message=f"缺少 comtypes：{exc}。技能要求 comtypes.client.CreateObject({helper_progid!r})。",
             evidence=evidence,
             entry=entry,
+            details={"helper": helper_progid, "object": object_name},
         )
     try:
         comtypes.CoInitialize()

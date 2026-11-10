@@ -12,6 +12,12 @@ from esab.runtime.state import STATE
 
 
 def main() -> None:
+    # Pin the protocol encoding to UTF-8 so a non-UTF-8 console locale (cp1252 on an
+    # English Windows install, for instance) cannot corrupt the JSON transport.
+    for stream in (sys.stdin, sys.stdout):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(encoding="utf-8", errors="replace")
     try:
         import esab_shim  # noqa: F401
     except ImportError:
