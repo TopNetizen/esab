@@ -1,5 +1,10 @@
 # ESAB — Engineering Software Agent Bridge
 
+[![CI](https://github.com/TopNetizen/esab/actions/workflows/ci.yml/badge.svg)](https://github.com/TopNetizen/esab/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
+[![MCP](https://img.shields.io/badge/protocol-MCP-6E56CF.svg)](https://modelcontextprotocol.io)
+
 **Let AI agents drive the engineering software you already own.**
 
 ESAB is a [Model Context Protocol](https://modelcontextprotocol.io) bridge. It connects an MCP client
