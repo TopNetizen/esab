@@ -5,15 +5,19 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
 [![MCP](https://img.shields.io/badge/protocol-MCP-6E56CF.svg)](https://modelcontextprotocol.io)
 
-**Let AI agents drive the engineering software you already own.**
+**工程结构通用智能体插件** · [简体中文](README.zh-CN.md)
 
-ESAB is a [Model Context Protocol](https://modelcontextprotocol.io) bridge. It connects an MCP client
-(Cursor, Claude Desktop, or your own agent) to engineering software that is *already installed and
-licensed on your machine* — CAD, CAE, structural analysis, BIM, and office tooling — and exposes each
-product's real API as callable tools.
+**Let AI model, analyse, compute and report inside the engineering software you already own.**
 
-ESAB does not model, does not compute, and does not bypass licensing. It is a transport and
-verification layer between an agent's reasoning and a commercial program's automation interface.
+Connect Cursor, WorkBuddy, Claude Desktop, or any agent that speaks MCP to the engineering software
+installed on your machine — **SAP2000, ETABS, STAAD.Pro, MIDAS GEN NX, Abaqus, Tekla, Rhino,
+AutoCAD / GstarCAD / ZWCAD / BricsCAD, SketchUp, PKPM, PKPM-CAE, SAUSG, PlantS, BIMBase, GBP** —
+15 products in total, with 22 bundled API skills. The agent drives the program; the program does the
+solver work; the engineering judgement stays with you.
+
+ESAB is a [Model Context Protocol](https://modelcontextprotocol.io) bridge. It does not model, does
+not compute, and does not bypass licensing: it is the transport and verification layer between an
+agent's reasoning and a commercial program's automation interface.
 
 ```
         ┌───────────────────────────────┐
@@ -60,6 +64,8 @@ This is not a stylistic preference. During the 0.4.0 audit, three separate false
 found and fixed — see [docs/cad-integration-report.md](docs/cad-integration-report.md).
 
 ## Supported software
+
+15 products, across structural analysis, FEA, detailing, drafting, plant and BIM:
 
 | Product | Category | Interface | Adapter |
 |---|---|---|---|
@@ -221,6 +227,9 @@ and the eight defects found and fixed along the way, including three false-succe
   adapters and the bridge itself run there.
 - **No code compliance checking.** Structural results and code conformance remain the responsibility of
   a qualified engineer.
+- **YJK (盈建科) and 3D3S are not covered.** There is no adapter and no skill for them — asking the
+  agent about YJK will get a diagnostic, not a fabrication. Adding YJK means writing a connection entry
+  that can prove a live session; the vendor's automation interface is the missing piece.
 - **`PKPM-Link/SKILL.md` references `RunPKPMAnalyse`, which does not exist** in `pkpm_calc.py`. Known,
   documented, not yet fixed — that skill line raises `ImportError`.
 
