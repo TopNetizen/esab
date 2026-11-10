@@ -1,21 +1,21 @@
 # Contributing
 
-Thanks for considering a contribution. This project has one non-negotiable rule, and everything else is
-ordinary Python work.
+Thanks for considering a contribution. Most of this codebase is ordinary Python work; the connection
+layer has requirements of its own.
 
-## The one rule: never report success you cannot prove
+## Connection requirements
 
-Every connection entry returns a `ConnectResult`. Setting `ok=True` or `live_verified=True` requires a
-round trip that the target program actually answered:
+Every connection entry returns a `ConnectResult`. `ok=True` or `live_verified=True` is only allowed
+after a round trip the target program actually answered:
 
-- COM: read a real property back (`app.Version`, `GetConnectionStatus()`) — construction is not
-  connection. pyautocad and pythonnet both construct lazily.
-- MCP: `initialize` **and** `list_tools` must both succeed against a discovered port.
-- TCP/REST: validate the response, not just the status code — a 200 with an empty body is not a
+- COM: read a real property back (`app.Version`, `GetConnectionStatus()`). Construction is not
+  connection — pyautocad and pythonnet both construct lazily.
+- MCP: `initialize` and `list_tools` must both succeed against a discovered port.
+- TCP/REST: validate the response body, not just the status code. A 200 with an empty body is not a
   connection.
-- Never map "did not raise" to "connected". Never map a returned error string to success.
+- "Did not raise" is not a connection. A returned error string is a failure, not a result.
 
-PRs that add a probe which passes because nothing threw will be rejected, however small the diff.
+A probe that reports success because nothing raised will be rejected, however small the diff.
 
 ## Adding a product adapter
 
@@ -48,8 +48,7 @@ pytest tests -q
 Windows-only extras (`comtypes`, `pywin32`, `pyautocad`, `pythonnet`) are only needed for the COM and
 .NET adapters; `pip install -e ".[test,win32,tekla]"` on Windows.
 
-Tests must pass on macOS and Linux too. Mechanical-only tests are not an excuse for a red suite — mark
-platform-specific tests with `pytest.mark.skipif`.
+Tests must pass on macOS and Linux too. Mark platform-specific tests with `pytest.mark.skipif`.
 
 ## Style
 

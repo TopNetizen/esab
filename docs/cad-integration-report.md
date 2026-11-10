@@ -1,7 +1,7 @@
 # ESAB 0.4.0a1 本地 CAD 插件测试报告
 
-> 本报告为中文原文，记录 0.4.0a1 在 Windows 参照机上完成的 CAD 联调与全部 15 个连接入口的假连接审计。
-> 报告中的脚本与原始记录均已随仓库发布，路径见下表。
+> 记录 0.4.0a1 在 Windows 参照机上完成的 CAD 联调，以及全部 15 个连接入口的假连接审计。
+> 脚本与原始记录随仓库发布，路径见下表。
 
 | 报告内引用 | 仓库路径 |
 |---|---|
@@ -29,7 +29,7 @@
 |---|---|---|---|
 | 1 | 安装 | `pip install -e ".[win32,test]"` | 通过，`esab 0.4.0a1`，comtypes / pywin32 / pyautocad 0.2.0 齐备 |
 | 2 | 自带测试 | `python -m pytest tests -q` | 通过，23 项全绿 |
-| 3 | MCP 启动 | `python -m esab agent --skills-root ...`（stdio） | 通过，`struct-engineering-runtime 0.2.0` 初始化成功 |
+| 3 | MCP 启动 | `python -m esab agent --skills-root ...`（stdio） | 通过，`esab-runtime 0.4.0a1` 初始化成功 |
 | 4 | 工具注册 | `list_tools` | 通过，`python_executor / use_skill / cancel_execution / list_software_adapters` |
 | 5 | 软件清单 | `list_software_adapters` | 通过，CAD 条目 kind=com，入口 `adapters.hosts.connect_cad` |
 | 6 | 技能读取 | `use_skill("AutoCAD-Link")` | 通过，返回 SKILL.md 全文 6224 字符，is_error=False |
@@ -119,7 +119,7 @@ CAD 恢复可用后的执行方式（任选其一）：
 2. 若改用浩辰/中望，需要同时让 ProgID 可解析（pyautocad 固定用 `AutoCAD.Application`），否则同样报类未注册；
 3. 先修 4.1 的假成功问题再测，否则 CAD 未启动时也会“显示连接成功”。
 
-## 6. “装了软件就必定通吗”：不是，需同时满足 6 个条件
+## 6. CAD 连接须同时成立的 6 个前置条件
 
 | # | 条件 | 不满足时的表现 | 本机现状 / 验证命令 |
 |---|---|---|---|
@@ -130,7 +130,7 @@ CAD 恢复可用后的执行方式（任选其一）：
 | 5 | 首次 COM 启动能吃下 `/Automation`（许可服务在位） | `CoCreateInstance` 失败或长时间超时 | 本机 Autodesk License Service 7.1.4 仍在，但 CAD 主体缺失，未验证 |
 | 6 | 代码写法与随包 pyautocad 0.2.0 匹配 | 第一步就 `AttributeError` | **已证伪（与是否有 CAD 无关）**：`acad.connection`、`acad.constants`、`CadSelectionRequiredError` 在 0.2.0 上都不存在，且 `Autocad` 没有 `__getattr__`，访问即抛错 |
 
-结论口径：**第 1～4 条满足时，绘图与读回这一段基本必通**（`AddLine / AddCircle / AddPolyline / AddText / AddDimAligned / ZoomExtents` 都是 AutoCAD 跨版本稳定的 ActiveX 接口；本机 Excel 16.0 的 COM 实测也证明执行链和会话持久化本身没问题）。但“装了软件”只覆盖第 1 条，第 2 条在本机历史上就是不成立的，第 6 条与软件无关且当前必然失败。所以不能得出“必定通”。
+结论：**第 1～4 条满足时，绘图与读回这一段基本必通**（`AddLine / AddCircle / AddPolyline / AddText / AddDimAligned / ZoomExtents` 都是 AutoCAD 跨版本稳定的 ActiveX 接口；本机 Excel 16.0 的 COM 实测也证明执行链和会话持久化本身没问题）。但“装了软件”只覆盖第 1 条，第 2 条在本机历史上就是不成立的，第 6 条与软件无关且当前必然失败。所以不能得出“必定通”。
 
 第 6 条的可执行验证（无需 CAD，已跑过）：
 
@@ -162,7 +162,7 @@ COM 注册现状（关键）：
 - 插件 `connect_cad()`：仍返回 `ok=True`（惰性假成功，见 4.1）。
 - 插件技能写法 `pyautocad.Autocad().app`：`OSError [WinError -2147221021]` —— pyautocad 0.2.0 写死 `AutoCAD.Application`，在浩辰上必然连不上。
 
-补丁内容（4 个文件，已打包为 `sab-0.4.0a1-浩辰CAD支持补丁.zip`，目录结构与源码一致）：
+补丁内容（4 个文件，已合入源码）：
 
 | 文件 | 改动 |
 |---|---|
@@ -203,11 +203,11 @@ EXTMIN: (0.0, -901.25, 0.0) | EXTMAX: (8422.22, 8081.31, 0.0)
 | 5 `/Automation` 许可正常 | 未测 | ✓ 教育版 30 天试用期内，COM 启动正常 |
 | 6 代码与依赖接口匹配 | ✗ | ✓ SKILL.md 已对齐 0.2.0 |
 
-即：**“有软件”本身不等于必定通**——浩辰的通用 ProgID 同样不存在，第 6 条也与软件无关；补上产品解析层与文档修正后，本机确实跑通了从 MCP 工具调用到实际绘图的完整链路。
+“有软件”本身不等于必定通：浩辰的通用 ProgID 同样不存在，第 6 条也与软件无关。补上产品解析层与文档修正后，本机跑通了从 MCP 工具调用到实际绘图的完整链路。
 
 ## 9. 其余 14 个软件接口的假连接审计
 
-主线问题：CAD 被证实存在“假成功”缺陷后，其余软件连接入口是否也会在软件未运行/未安装时误报 `ok=True / live_verified=True`。审计分三步：运行时逐条真机调用 → 判据强度分级 → 对可疑判据做可控证伪实验。
+CAD 被证实存在假成功缺陷后，又检查了其余 14 个连接入口是否会在软件未运行或未安装时误报 `ok=True / live_verified=True`。审计分三步：运行时逐条真机调用 → 判据强度分级 → 对可疑判据做可控证伪实验。
 
 ### 9.1 运行时逐条实测（本机这 14 款软件均未安装或未运行）
 
@@ -231,7 +231,7 @@ EXTMIN: (0.0, -901.25, 0.0) | EXTMAX: (8422.22, 8081.31, 0.0)
 
 结论：**运行时层面除 CAD 外没有假成功**，14 个接口在软件缺失时全部给出针对性诊断，没有一个是“看起来成功”。完整原始记录见 `tools/adapter_audit.json`，可复跑脚本 `tools/adapter_audit.py`（每个入口独立子进程、45s 超时）。
 
-但“软件缺失时不误报”只是必要条件。真正容易出事的场景是**软件装了但没开**，这时判据强不强度才见分晓，所以又做了静态分级。
+“软件缺失时不误报”只是必要条件；软件装了但没开的情况更容易误判，因此又做了静态分级。
 
 ### 9.2 判据强度分级
 
@@ -245,7 +245,7 @@ EXTMIN: (0.0, -901.25, 0.0) | EXTMAX: (8422.22, 8081.31, 0.0)
 | SketchUp | 桥接插件 status 往返 |
 | CAD | 补丁后强制读 `app.Version` |
 
-MCP 这一路还需排除“端口探测本身被骗”的可能：`port_discovery._probe_mcp` 只凭 HTTP 200/406/401/403 就认定该端口是 MCP，是个弱启发式。实测见 9.3-A：它确实被骗了，但 `connect_streamable` 仍报失败——最外层判据是真实握手，弱启发式只影响“先试哪个端口”，不影响最终结论。
+MCP 这一路还需排除“端口探测本身被骗”的可能：`port_discovery._probe_mcp` 只凭 HTTP 200/406/401/403 就认定该端口是 MCP，是个弱启发式。实测见 9.3-A：它确实被骗了，但 `connect_streamable` 仍报失败，因为最外层判据是真实握手，弱启发式只影响先试哪个端口。
 
 **B 类：判据依赖软件自身语义，本机未安装、无法证伪**（详见 9.4）
 
@@ -264,7 +264,7 @@ MCP 这一路还需排除“端口探测本身被骗”的可能：`port_discove
 | C | 伪造 PlantS 进程存在（无任何实例、无 MCP 服务） | **返回 `{'connected': True}`** | 走真实 MCP 握手，抛 RuntimeError“没有找到运行中的 plantsmcp 进程” |
 | D | PKPM 连接成功后取 `details["value"]` | 静默返回 `None`（details 里只有 url/pages/namespace） | 取不到就抛错并打印 `details` 现有键 |
 
-三点值得说明：
+三点补充：
 
 1. **C 不是死代码**。`data/skills/PlantS-Link/SKILL.md` 第 28、39 行和 `scripts/IndustryCorridor.py` 第 21 行都直接 `from esab_shim.software_link_kit.plants import connect_to_plants`，而且该技能明确“禁止把 `connect_to_server('plantsmcp')` 当作首选入口”。也就是说 agent 最可能走的就是这条只看进程名的路径：PlantS 进程在、MCP 没起来时它会先报连接成功，等到调用注入工具才失败，错误位置与真实原因完全错位。
 2. **B 是遗留函数**。`connect_official` 当前在 `CONNECTORS` 里没有调用方，属潜伏缺陷；只要以后有适配器复用它，就会重现最初 Rhino“未安装却 live_verified=true”那类误报。
@@ -293,9 +293,8 @@ MCP 这一路还需排除“端口探测本身被骗”的可能：`port_discove
 
 ### 9.6 结论
 
-1. **“有软件就必定通”不成立**，CAD 已用浩辰证过一次；但反过来的说法同样不成立：**“没假报”也不等于“真连上”**。
+1. “有软件就必定通”不成立，CAD 已用浩辰证过一次；反过来，“没假报”也不等于“真连上”。
 2. 15 个入口中，运行时层面只有 CAD 报成功且属真实连接，其余 14 个在软件缺失时判据正确。
 3. 静态层面存在 **3 处确定的假成功逻辑**（`connect_official` 字符串当成功、PlantS 包装层只看进程名、pkpm_calc 静默 None），本轮已修；另有 **3 处判据需真机复核**（CSI 两个、STAAD、MIDAS 空响应），本机因软件未安装无法证伪，已在 9.4 给出可执行的复核步骤。
-4. 判据强度上，Abaqus / Tekla / SketchUp / MCP 系 / 补丁后的 CAD 属同一档；最薄弱的是那些“只判进程或只判不抛异常”的路径，这也是本轮修复的靶心。
+4. 判据强度上，Abaqus / Tekla / SketchUp / MCP 系 / 补丁后的 CAD 属同一档；最薄弱的是“只判进程或只判不抛异常”的路径。
 
-![浩辰CAD 2027 端到端联调实机截图](images/gstarcad-e2e-result.png)

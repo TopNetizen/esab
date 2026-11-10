@@ -7,17 +7,15 @@
 
 **工程结构通用智能体插件** · [简体中文](README.zh-CN.md)
 
-**Let AI model, analyse, compute and report inside the engineering software you already own.**
+ESAB is a [Model Context Protocol](https://modelcontextprotocol.io) server. It connects Cursor, WorkBuddy,
+Claude Desktop, or another MCP client to engineering software that is already installed and licensed on
+the machine:
 
-Connect Cursor, WorkBuddy, Claude Desktop, or any agent that speaks MCP to the engineering software
-installed on your machine — **SAP2000, ETABS, STAAD.Pro, MIDAS GEN NX, Abaqus, Tekla, Rhino,
-AutoCAD / GstarCAD / ZWCAD / BricsCAD, SketchUp, PKPM, PKPM-CAE, SAUSG, PlantS, BIMBase, GBP** —
-15 products in total, with 22 bundled API skills. The agent drives the program; the program does the
-solver work; the engineering judgement stays with you.
+**SAP2000 · ETABS · STAAD.Pro · MIDAS GEN NX · Abaqus · Tekla Structures · Rhino · AutoCAD / GstarCAD /
+ZWCAD / BricsCAD · SketchUp · PKPM · PKPM-CAE · SAUSG · PlantS · BIMBase · GBP**
 
-ESAB is a [Model Context Protocol](https://modelcontextprotocol.io) bridge. It does not model, does
-not compute, and does not bypass licensing: it is the transport and verification layer between an
-agent's reasoning and a commercial program's automation interface.
+15 products, 22 bundled API skills. The agent issues the calls, the installed program runs its own
+solver, and design responsibility stays with the engineer.
 
 ```
         ┌───────────────────────────────┐
@@ -41,27 +39,8 @@ agent's reasoning and a commercial program's automation interface.
      └────────────┘ └──────────┘ └──────────────────────────┘
 ```
 
-## Why this exists
-
-Every engineering program has an automation interface, and every one of them is different: COM
-dispatch here, a .NET SDK there, a local MCP server on a random port, a REST endpoint with a custom
-header. An agent cannot discover any of that on its own, and guessing is worse than failing — a
-fabricated `AddBeam()` call that silently "succeeds" is how engineers learn to distrust AI tooling.
-
-ESAB's design constraint is therefore **the bridge must never report success it cannot prove**:
-
-- every connection entry returns a `ConnectResult` carrying `ok`, `live_verified`, the evidence used,
-  and a diagnostic message;
-- a successful connect requires a real round trip with the target program — COM `app.Version` read
-  back, MCP `initialize` + `list_tools` handshake, TCP health probe with response-id validation;
-- when the target is closed, the result is a specific diagnosis (`REGDB_E_CLASSNOTREG`,
-  `ConnectionRefusedError: 10061`, "no running `pkpmmcp` process"), never an empty tool list and never
-  a hallucinated capability;
-- tool schemas come from the upstream server verbatim. ESAB does not invent tools for software that
-  is not running.
-
-This is not a stylistic preference. During the 0.4.0 audit, three separate false-success paths were
-found and fixed — see [docs/cad-integration-report.md](docs/cad-integration-report.md).
+ESAB does not model, solve, or handle licensing. It forwards calls to each program's own automation
+interface and checks what comes back.
 
 ## Supported software
 
@@ -85,11 +64,10 @@ found and fixed — see [docs/cad-integration-report.md](docs/cad-integration-re
 | BIMBase | Parametric BIM | Local MCP server | `connect_bimbase` |
 | GBP | Green building / carbon | Local MCP server | `connect_gbp` |
 
-`connect_cad` resolves the actual CAD product at runtime: `AutoCAD.Application` is probed first, then
-redirected to `GstarCAD.Application` / `GCAD.Application` / `ZWCAD.Application` / `BricsCAD.Application`
-when the generic ProgID is absent. This matters in practice — a GstarCAD install has no
-`AutoCAD.Application` at all, so a hard-coded ProgID fails with `REGDB_E_CLASSNOTREG` on a machine
-where the software is running perfectly well.
+`connect_cad` resolves the CAD product at runtime: it probes `AutoCAD.Application` first, then
+`GstarCAD.Application` / `GCAD.Application` / `ZWCAD.Application` / `BricsCAD.Application` when the
+generic ProgID is absent. A GstarCAD install has no `AutoCAD.Application` at all, so a hard-coded ProgID
+returns `REGDB_E_CLASSNOTREG` on a machine where the software is running normally.
 
 ## Install
 
@@ -106,13 +84,13 @@ pip install "esab[win32,tekla]"    # adds pythonnet for Tekla
 
 Python 3.11+. The bridge itself is cross-platform; COM-based adapters are Windows-only by nature.
 
-## Quick start
+## Running
 
-ESAB runs in two modes.
+ESAB has two modes.
 
 ### 1. Bridge mode — aggregate upstream MCP servers
 
-Use this when the software ships its own MCP server (PKPM, CAE, SAUSG, PlantS, BIMBase, GBP) or when
+Use this when the software ships its own MCP server (PKPM, CAE, SAUSG, PlantS, BIMBase, GBP), or when
 you have a fixture you want to test transport against.
 
 ```bash
@@ -147,6 +125,9 @@ Register it in your client (`examples/cursor.mcp.json`, `examples/claude_desktop
 }
 ```
 
+Upstream tools are forwarded as `<server id>__<tool name>`, so two servers exposing `draw_line` do not
+collide.
+
 ### 2. Runtime mode — skills + a persistent Python session
 
 Use this for COM/SDK products. The agent gets a long-lived Python process with `connect_to_server`,
@@ -177,38 +158,55 @@ esab http --host 127.0.0.1 --port 47331 --token "$ESAB_TOKEN"
 # remote binding also requires: --allow-remote
 ```
 
+## What a connection result contains
+
+Every connection entry returns a `ConnectResult` with `ok`, `live_verified`, `evidence` and a diagnostic
+`message`.
+
+`live_verified` is only set after a round trip answered by the target program:
+
+| Interface | Required round trip |
+|---|---|
+| COM | Read a real property back (`app.Version`, `GetConnectionStatus()`). Constructing the object does not count — pyautocad and pythonnet both construct lazily. |
+| MCP | `initialize` and `list_tools` both succeed against a discovered port. |
+| TCP / REST | The response body is validated; a 200 with an empty body is not a connection. |
+
+When the target is closed, the result names the cause — `REGDB_E_CLASSNOTREG`,
+`ConnectionRefusedError: 10061`, "no running `pkpmmcp` process" — rather than returning an empty tool
+list. Tool schemas are forwarded from the upstream server unchanged, so a product that is not running
+exposes no tools.
+
 ## Skills
 
-Each supported product ships a skill: `SKILL.md` plus reference material and helper scripts — plain
-Markdown and Python, no encryption. Skills are what turn "there is an API" into "the agent knows the
-API": object model, worked examples, and the error codes you will actually hit.
+Each supported product ships a skill: `SKILL.md` plus reference material and helper scripts, in plain
+Markdown and Python. A skill documents the object model, worked examples, and the error codes that
+occur in practice.
 
-The bigger products ship a searchable API index (`data/skills/*/references/*.db`) built from the
-vendor's own API documentation: Tekla, Abaqus (2024/2025/2026), MIDAS, SAP2000, ETABS, Rhino,
-SketchUp. That is what lets an agent look up `SAPModel.FrameObj.AddByCoord` and its overloads instead
-of guessing at signatures. These indexes account for ~95 MB of the repository; they are committed
-rather than fetched so a clone is immediately usable.
+The larger products ship a searchable API index (`data/skills/*/references/*.db`) built from the
+vendor's own API documentation: Tekla, Abaqus (2024/2025/2026), MIDAS, SAP2000, ETABS, Rhino, SketchUp.
+These indexes account for ~95 MB of the repository; they are committed rather than downloaded so a
+clone works offline.
 
-Included skills: SAP2000, ETABS, STAAD.Pro, MIDAS, Abaqus, Tekla, Rhino, SketchUp, AutoCAD,
-PKPM, PKPM-CAE, SAUSG (SSG), PlantS, BIMBase, GBP, plus Word, Excel, PPT and PDF authoring.
+Included skills: SAP2000, ETABS, STAAD.Pro, MIDAS, Abaqus, Tekla, Rhino, SketchUp, AutoCAD, PKPM,
+PKPM-CAE, SAUSG (SSG), PlantS, BIMBase, GBP, plus Word, Excel, PPT and PDF authoring.
 
-## Verification, not vibes
+## Audit tooling
 
-The repository ships the audit tooling used to validate adapters, and you can re-run it on your own
+The audit tools used to validate the adapters ship with the repository and can be re-run on any
 machine:
 
 ```bash
 python tools/adapter_audit.py        # calls all 15 connection entries, 45 s timeout each
-python tools/false_positive_probe.py # four controlled experiments that try to fool the bridge
+python tools/false_positive_probe.py # four experiments that try to make the bridge report a false success
 ```
 
-`tools/adapter_audit.json` is the raw record from the reference machine: 14 entries correctly
-reported `ok=False` with a specific cause, 1 (CAD) genuinely connected.
+`tools/adapter_audit.json` is the raw record from the reference machine: 14 entries returned `ok=False`
+with a specific cause, and 1 (CAD) connected for real.
 
-[docs/cad-integration-report.md](docs/cad-integration-report.md) is the full report — a real
-end-to-end GstarCAD 2027 session (draw line / circle / polyline / text / dimension, read geometry
-back, reuse the COM session), the six preconditions that must all hold for a CAD connection to work,
-and the eight defects found and fixed along the way, including three false-success paths:
+[docs/cad-integration-report.md](docs/cad-integration-report.md) contains the full record — an
+end-to-end GstarCAD 2027 session (draw line / circle / polyline / text / dimension, read the geometry
+back, reuse the COM session), the six preconditions that must all hold for a CAD connection, and the
+eight defects found and fixed along the way, three of which reported success without one:
 
 - `connect_cad()` returned `ok=True` because pyautocad constructs lazily and never touched COM;
 - `connect_official()` treated a returned error *string* as success;
@@ -222,16 +220,16 @@ and the eight defects found and fixed along the way, including three false-succe
   automates activation and never works around a license check.
 - **SAP2000 / ETABS, STAAD and MIDAS criteria are unverified on the reference machine.** Those products
   were not installed during the audit, so their connect criteria are graded "requires on-site
-  re-check"; the report documents the exact steps. Treat `live_verified` from those three as unproven.
+  re-check"; the report documents the exact steps. `live_verified` from those three is unproven.
 - **Windows-only adapters.** COM and .NET paths do not exist on macOS or Linux. Only the MCP/REST
   adapters and the bridge itself run there.
 - **No code compliance checking.** Structural results and code conformance remain the responsibility of
   a qualified engineer.
-- **YJK (盈建科) and 3D3S are not covered.** There is no adapter and no skill for them — asking the
-  agent about YJK will get a diagnostic, not a fabrication. Adding YJK means writing a connection entry
-  that can prove a live session; the vendor's automation interface is the missing piece.
-- **`PKPM-Link/SKILL.md` references `RunPKPMAnalyse`, which does not exist** in `pkpm_calc.py`. Known,
-  documented, not yet fixed — that skill line raises `ImportError`.
+- **YJK (盈建科) and 3D3S are not covered.** There is no adapter and no skill for them, so a request
+  involving either returns a diagnostic. Adding YJK requires a connection entry that can verify a live
+  session; the vendor's automation interface is the missing piece.
+- **`PKPM-Link/SKILL.md` references `RunPKPMAnalyse`, which does not exist** in `pkpm_calc.py`. That
+  skill line raises `ImportError`.
 
 ## Development
 
@@ -254,9 +252,7 @@ docs/                integration report
 scripts/             Windows install / acceptance PowerShell scripts
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a PR. Adding a product means adding an adapter
-that can *prove* a connection — a probe that returns `ok=True` because nothing threw an exception is
-the one thing this project will not merge.
+[CONTRIBUTING.md](CONTRIBUTING.md) lists what a new adapter has to do before it is merged.
 
 ## License
 

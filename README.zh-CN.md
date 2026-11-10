@@ -7,18 +7,16 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
 [![MCP](https://img.shields.io/badge/protocol-MCP-6E56CF.svg)](https://modelcontextprotocol.io)
 
-**让 AI 在你已装、已授权的工程软件里建模、分析、算题、出报告。**
+ESAB 是一个 [MCP](https://modelcontextprotocol.io)（Model Context Protocol）服务，把 Cursor、WorkBuddy、
+Claude Desktop 或其他 MCP 客户端，连到本机已安装、已授权的工程软件上：
 
-把 Cursor、WorkBuddy、Claude Desktop，或任何支持 MCP 的智能体，连到本机的工程软件上——
-**SAP2000、ETABS、STAAD.Pro、MIDAS GEN NX、Abaqus、Tekla、Rhino、
-AutoCAD / 浩辰 / 中望 / BricsCAD、SketchUp、PKPM、PKPM-CAE、SAUSG、PlantS、BIMBase、GBP**，
-共 15 款软件、22 套 API 技能。智能体负责驱动，软件负责算，工程判断仍然归你。
+**SAP2000 · ETABS · STAAD.Pro · MIDAS GEN NX · Abaqus · Tekla Structures · Rhino ·
+AutoCAD / 浩辰 / 中望 / BricsCAD · SketchUp · PKPM · PKPM-CAE · SAUSG · PlantS · BIMBase · GBP**
 
-ESAB 是一个 [MCP](https://modelcontextprotocol.io)（Model Context Protocol）桥接器。它不建模、不计算、
-不绕过任何许可校验——它只是智能体的推理与商业软件的自动化接口之间的**传输与验证层**。
+共 15 款软件、22 套 API 技能。智能体发出调用，软件用自己的求解器计算，设计责任仍在工程师。
 
 ```
-MCP 客户端（Cursor / WorkBuddy / Claude Desktop / 任意支持 MCP 的智能体）
+MCP 客户端（Cursor / WorkBuddy / Claude Desktop / 任意 MCP 客户端）
     │   MCP：stdio，或带令牌的 Streamable HTTP
     ▼
 ESAB  ──  python_executor（常驻会话）· use_skill（API 技能）· adapters（15 个连接入口）
@@ -28,23 +26,7 @@ SAP2000 · ETABS · STAAD.Pro · MIDAS · Abaqus · Tekla · Rhino
 AutoCAD / 浩辰 / 中望 / BricsCAD · SketchUp · PKPM · PKPM-CAE · SAUSG · PlantS · BIMBase · GBP
 ```
 
-## 为什么做这个
-
-每款工程软件都有自动化接口，而且各不相同：这里是 COM 派发，那里是 .NET SDK，有的在随机端口上起一个
-本地 MCP 服务，有的要自定义请求头的 REST。智能体没法自己发现这些，而**猜比失败更糟**——一次"看起来
-成功"的 `AddBeam()`，足以让工程师彻底不信任 AI 工具。
-
-所以本项目的硬约束是：**桥接器绝不报告它证明不了的连接。**
-
-- 每个连接入口返回 `ConnectResult`，带 `ok`、`live_verified`、判定证据和诊断信息；
-- 连接成功必须有一次与目标程序的真实往返：读回 COM 的 `app.Version`、MCP `initialize` + `list_tools`
-  双程握手、带响应 id 校验的 TCP 健康探测；
-- 目标没开时给出具体诊断（`REGDB_E_CLASSNOTREG`、`ConnectionRefusedError: 10061`、"没有运行中的
-  `pkpmmcp` 进程"），不返回空工具表，更不编造能力；
-- 工具 schema 原样来自上游，软件没开就不存在对应的工具。
-
-这不是风格偏好。0.4.0 审计中查出并修掉了三条独立的假成功路径，详见
-[docs/cad-integration-report.md](docs/cad-integration-report.md)。
+ESAB 不建模、不求解、不处理许可。它把调用转发给各软件自己的自动化接口，并核对返回结果。
 
 ## 支持的软件
 
@@ -68,9 +50,9 @@ AutoCAD / 浩辰 / 中望 / BricsCAD · SketchUp · PKPM · PKPM-CAE · SAUSG ·
 | BIMBase | 参数化 BIM | 本机 MCP 服务 | `connect_bimbase` |
 | GBP | 绿色低碳 | 本机 MCP 服务 | `connect_gbp` |
 
-`connect_cad` 会在运行时解析真实的 CAD 产品：先试 `AutoCAD.Application`，通用 ProgID 不存在时依次
+`connect_cad` 在运行时解析实际的 CAD 产品：先试 `AutoCAD.Application`，通用 ProgID 不存在时依次
 重定向到 `GstarCAD.Application` / `GCAD.Application` / `ZWCAD.Application` / `BricsCAD.Application`。
-浩辰这类产品根本没有注册 `AutoCAD.Application`，写死 ProgID 会在软件明明正常运行的机器上报
+浩辰这类产品根本没有注册 `AutoCAD.Application`，写死 ProgID 会在软件正常运行时报
 `REGDB_E_CLASSNOTREG`。
 
 ## 安装
@@ -86,9 +68,9 @@ pip install "esab[win32]"          # comtypes、pywin32、pyautocad —— COM �
 pip install "esab[win32,tekla]"    # 追加 pythonnet，支持 Tekla
 ```
 
-需要 Python 3.11+。桥接器本身跨平台，COM 类适配器天然只能在 Windows 上跑。
+需要 Python 3.11+。桥接器本身跨平台，COM 类适配器只能在 Windows 上跑。
 
-## 快速上手
+## 运行
 
 ESAB 有两种运行模式。
 
@@ -128,6 +110,8 @@ esab stdio --config bridge.json
 }
 ```
 
+上游工具按 `<上游 id>__<工具名>` 转发，两个服务都有 `draw_line` 也不会撞名。
+
 ### 二、运行时模式：技能 + 常驻 Python 会话
 
 适用于 COM / SDK 类产品。智能体拿到一个长期存活的 Python 进程，`connect_to_server`、`connect_cad`、
@@ -156,34 +140,49 @@ esab http --host 127.0.0.1 --port 47331 --token "$ESAB_TOKEN"
 # 远程绑定还需：--allow-remote
 ```
 
+## 连接结果里有什么
+
+每个连接入口返回 `ConnectResult`，含 `ok`、`live_verified`、`evidence` 和诊断信息 `message`。
+
+`live_verified` 只在目标程序真实回应过一次往返之后才置位：
+
+| 接口 | 必须完成的往返 |
+|---|---|
+| COM | 读回一个真实属性（`app.Version`、`GetConnectionStatus()`）。对象构造完成不算连接——pyautocad 和 pythonnet 都是惰性构造。 |
+| MCP | `initialize` 与 `list_tools` 都要在发现的端口上成功。 |
+| TCP / REST | 校验响应正文；200 但空 body 不算连接。 |
+
+目标没开时，结果给出具体原因——`REGDB_E_CLASSNOTREG`、`ConnectionRefusedError: 10061`、
+"没有运行中的 `pkpmmcp` 进程"——而不是返回一张空工具表。工具 schema 原样转发自上游，软件没开就没有
+对应工具。
+
 ## 技能
 
-每个支持的产品都带一套技能：`SKILL.md` + 参考资料 + 辅助脚本，纯 Markdown 和 Python，无加密。
-技能把"有 API"变成"智能体知道这个 API"：对象模型、可跑示例、以及你一定会撞上的错误码。
+每个支持的产品都带一套技能：`SKILL.md` + 参考资料 + 辅助脚本，纯 Markdown 和 Python。技能写明对象
+模型、可跑示例，以及实际会遇到的错误码。
 
 大产品还带可检索的 API 索引（`data/skills/*/references/*.db`），由厂商 API 文档构建：Tekla、Abaqus
-（2024 / 2025 / 2026）、MIDAS、SAP2000、ETABS、Rhino、SketchUp。这才让智能体去查
-`SAPModel.FrameObj.AddByCoord` 及其重载，而不是瞎猜签名。这些索引约占 95 MB，选择入库而不是按需
-下载，换来"克隆下来就能用"。
+（2024 / 2025 / 2026）、MIDAS、SAP2000、ETABS、Rhino、SketchUp。这些索引约占 95 MB，选择入库而不是
+按需下载，换来克隆下来离线可用。
 
 随包技能（22 套）：SAP2000、ETABS、STAAD.Pro、MIDAS、Abaqus、Tekla、Rhino、SketchUp、AutoCAD、
 PKPM、PKPM-CAE、SAUSG（SSG）、PlantS、BIMBase、GBP，以及写报告用的 Word、Excel、PPT、PDF 四套。
 
-## 验证，而不是感觉
+## 审计工具
 
-仓库自带审计工具，可以在你自己的机器上复跑：
+验证适配器用的审计工具随仓库发布，可以在自己的机器上复跑：
 
 ```bash
 python tools/adapter_audit.py        # 逐个真机调用 15 个连接入口，每个 45 秒超时
-python tools/false_positive_probe.py # 四组刻意骗过桥接器的证伪实验
+python tools/false_positive_probe.py # 四组试图让桥接器误报成功的实验
 ```
 
-`tools/adapter_audit.json` 是参照机上的原始记录：14 个入口正确返回 `ok=False` 并给出具体原因，
-1 个（CAD）是真实连接。
+`tools/adapter_audit.json` 是参照机上的原始记录：14 个入口返回 `ok=False` 并给出具体原因，1 个（CAD）
+是真实连接。
 
-[docs/cad-integration-report.md](docs/cad-integration-report.md) 是完整报告：浩辰CAD 2027 的端到端
+[docs/cad-integration-report.md](docs/cad-integration-report.md) 是完整记录：浩辰CAD 2027 的端到端
 实机联调（画线、圆、多段线、文字、标注，回读几何，复用 COM 会话）、CAD 连接必须同时成立的 6 个前置
-条件、以及沿途查出并修掉的 8 个缺陷——其中三条是假成功：
+条件、以及沿途查出并修掉的 8 个缺陷，其中三条是没连上却报了成功：
 
 - `connect_cad()` 返回 `ok=True`，因为 pyautocad 惰性构造，压根没碰 COM；
 - `connect_official()` 把返回的错误**字符串**当成成功；
@@ -194,14 +193,14 @@ python tools/false_positive_probe.py # 四组刻意骗过桥接器的证伪实�
 ## 已知限制
 
 - **许可与登录由你负责。** ESAB 附着到已运行、已授权的会话，不自动化激活，不绕过许可校验。
-- **YJK（盈建科）、3D3S 尚未覆盖。** 没有对应适配器，也没有技能——问智能体 YJK 的事，得到的是诊断，
-  不是编造。要支持 YJK，得先写一个能**证明**活会话的连接入口，缺的是厂商的自动化接口。
 - **SAP2000 / ETABS、STAAD、MIDAS 的判据未在参照机上验证。** 审计时这些软件未安装，其连接判据标注为
-  "需现场复核"，报告 9.4 节给了复核步骤。这三者返回的 `live_verified` 应视为未证实。
+  "需现场复核"，报告 9.4 节给了复核步骤。这三者返回的 `live_verified` 未证实。
 - **部分适配器仅限 Windows。** COM 与 .NET 路径在 macOS / Linux 上不存在，那边只有 MCP / REST 适配器
   和桥接器本体。
 - **不做规范符合性判断。** 计算结果与规范符合性仍需有资质的工程师核对。
-- **`PKPM-Link/SKILL.md` 引用了 `pkpm_calc.py` 中不存在的 `RunPKPMAnalyse`**，已知未修，执行到该行会
+- **YJK（盈建科）、3D3S 尚未覆盖。** 没有对应适配器，也没有技能，问到这两家得到的是诊断信息。要支持
+  YJK，需要先有能验证活会话的连接入口；缺的是厂商的自动化接口。
+- **`PKPM-Link/SKILL.md` 引用了 `pkpm_calc.py` 中不存在的 `RunPKPMAnalyse`**，执行到该行会
   `ImportError`。
 
 ## 开发
@@ -225,8 +224,7 @@ docs/                联调与审计报告
 scripts/             Windows 安装 / 验收 PowerShell 脚本
 ```
 
-提 PR 前请读 [CONTRIBUTING.md](CONTRIBUTING.md)。新增一个产品 = 新增一个**能证明连接**的适配器；靠
-"没抛异常"就返回 `ok=True` 的探针，是本项目唯一不会合并的东西。
+新增适配器要满足哪些条件，见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ## 许可证
 
